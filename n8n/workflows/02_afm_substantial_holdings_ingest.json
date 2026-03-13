@@ -1,0 +1,292 @@
+{
+  "name": "AFM Substantial Holdings Ingest",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2",
+      "name": "Fetch AFM Holdings CSV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "url": "https://www.afm.nl/export.aspx?type=4d1592ac-6469-46f2-a4f1-0ef8f59f0ca3&format=csv",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Read CSV",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [
+        640,
+        300
+      ],
+      "parameters": {
+        "operation": "toJson",
+        "binaryPropertyName": "data"
+      }
+    },
+    {
+      "id": "4",
+      "name": "Set Source Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        860,
+        300
+      ],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "source",
+              "value": "afm_substantial_holdings"
+            },
+            {
+              "name": "source_type",
+              "value": "register_export"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "5",
+      "name": "Create Row Hash",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nreturn items.map(item => {\n  const j = item.json;\n  const key = [j.source, j['Date of transaction'], j['Issuing institution'], j['Person obliged to notify']].join('|');\n  j.row_hash = crypto.createHash('md5').update(key).digest('hex');\n  j.event_date = j['Date of transaction'];\n  j.issuer_name = j['Issuing institution'];\n  j.person_name = j['Person obliged to notify'];\n  j.raw_text = JSON.stringify({ capital_interest: j['Capital interest'], voting_rights: j['Voting rights'], manner_of_disposal: j['Manner of disposal'] });\n  return { json: j };\n});"
+      }
+    },
+    {
+      "id": "6",
+      "name": "Upsert Raw Events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/raw_events?on_conflict=row_hash",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}"
+      }
+    },
+    {
+      "id": "7",
+      "name": "Compute Simple Direction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        300
+      ],
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const j = item.json;\n  const disposition = (j['Manner of disposal'] || '').toLowerCase();\n  const ci = (j['Capital interest'] || '').toLowerCase();\n  j.raw_text = `${j.raw_text || ''} ${disposition} ${ci}`;\n  if (/(dispose|disposal|reduction|decrease|lower)/.test(disposition)) j.transaction_direction = 'outflow';\n  return { json: j };\n});"
+      }
+    },
+    {
+      "id": "8",
+      "name": "Normalize Events",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        300
+      ],
+      "parameters": {
+        "jsCode": "function toNumber(value) {\n  if (value === null || value === undefined || value === '') return null;\n  if (typeof value === 'number') return Number.isFinite(value) ? value : null;\n  const cleaned = String(value)\n    .replace(/\\./g, '')\n    .replace(',', '.')\n    .replace(/[^\\d.-]/g, '');\n  const parsed = Number(cleaned);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction normalizeName(value) {\n  if (!value) return null;\n  return String(value)\n    .trim()\n    .replace(/\\s+/g, ' ')\n    .replace(/\bN\\.V\\.\b/gi, 'NV')\n    .replace(/\bB\\.V\\.\b/gi, 'BV');\n}\n\nfunction inferEventClass(source, title = '', rawText = '') {\n  const haystack = `${title} ${rawText}`.toLowerCase();\n\n  if (source === 'afm_mar19') return { eventClass: 'insider_transaction', eventSubclass: inferTransactionSubclass(haystack) };\n  if (source === 'afm_substantial_holdings') return { eventClass: 'ownership_shift', eventSubclass: inferOwnershipSubclass(haystack) };\n  if (source === 'euronext_news') return { eventClass: inferNewsClass(haystack), eventSubclass: inferNewsSubclass(haystack) };\n  if (source === 'afm_inside_information') return { eventClass: 'inside_information', eventSubclass: inferNewsSubclass(haystack) };\n  if (source === 'exa_private_liquidity') return { eventClass: 'private_liquidity', eventSubclass: inferNewsSubclass(haystack) };\n  return { eventClass: 'unknown', eventSubclass: 'unknown' };\n}\n\nfunction inferTransactionSubclass(text) {\n  if (text.includes('vervreemding') || text.includes('verkoop') || text.includes('sale') || text.includes('disposal')) return 'sale_or_disposal';\n  if (text.includes('verwerving') || text.includes('acquisition') || text.includes('purchase')) return 'acquisition';\n  if (text.includes('uitoefening') || text.includes('omwisseling') || text.includes('exercise')) return 'exercise_or_conversion';\n  if (text.includes('grant') || text.includes('award')) return 'grant_or_award';\n  return 'other';\n}\n\nfunction inferOwnershipSubclass(text) {\n  if (text.includes('disposal') || text.includes('reduction') || text.includes('decrease') || text.includes('lower')) return 'ownership_reduction';\n  if (text.includes('acquisition') || text.includes('increase') || text.includes('higher')) return 'ownership_increase';\n  return 'ownership_change';\n}\n\nfunction inferNewsClass(text) {\n  if (text.includes('major shareholding')) return 'ownership_shift';\n  if (text.includes('mandatory notification of trade')) return 'insider_transaction';\n  if (text.includes('merger') || text.includes('acquisition') || text.includes('takeover') || text.includes('transfer')) return 'corporate_transaction';\n  if (text.includes('financial transaction') || text.includes('placement') || text.includes('secondary')) return 'corporate_transaction';\n  return 'news_event';\n}\n\nfunction inferNewsSubclass(text) {\n  if (text.includes('secondary')) return 'secondary_sale';\n  if (text.includes('block trade')) return 'block_trade';\n  if (text.includes('placement')) return 'placement';\n  if (text.includes('takeover')) return 'takeover';\n  if (text.includes('merger')) return 'merger';\n  if (text.includes('acquisition')) return 'acquisition';\n  if (text.includes('shareholding')) return 'shareholding_notification';\n  return 'other';\n}\n\nfunction inferDirection(text = '') {\n  const haystack = text.toLowerCase();\n  if (/(sale|verkoop|disposal|vervreemding|reduction|decrease)/.test(haystack)) return 'outflow';\n  if (/(acquisition|purchase|verwerving|increase)/.test(haystack)) return 'inflow';\n  return 'unknown';\n}\n\nconst input = items.map((item) => item.json);\n\nreturn input.map((row) => {\n  const source = row.source || 'unknown';\n  const issuer = normalizeName(row.issuer_name || row['Uitgevende instelling'] || row.issuer || row.company);\n  const person = normalizeName(row.person_name || row['Meldingsplichtige'] || row['Person obliged to notify'] || row.notifiable);\n  const title = row.title || '';\n  const rawText = row.raw_text || row.body || row.description || '';\n  const roleTitle = row.role_title || row['Positie'] || row.position || null;\n  const price = toNumber(row.price || row['Prijs'] || row.transaction_price);\n  const quantity = toNumber(row.quantity || row['Aantal'] || row.transaction_quantity);\n  const estimatedValue = price !== null && quantity !== null ? Number((price * quantity).toFixed(2)) : null;\n  const inferred = inferEventClass(source, title, rawText);\n  const direction = inferDirection(`${title} ${rawText} ${row.transaction_type || ''} ${row.transaction_category || ''}`);\n\n  return {\n    json: {\n      raw_event_id: row.id || row.raw_event_id || null,\n      issuer_name_normalized: issuer,\n      person_name_normalized: person,\n      event_date: row.event_date || row['Transactie'] || row['Date of transaction'] || null,\n      source,\n      event_class: inferred.eventClass,\n      event_subclass: inferred.eventSubclass,\n      transaction_direction: direction,\n      price,\n      quantity,\n      currency: row.currency || row['Eenheid'] || row.unit || null,\n      estimated_value: estimatedValue,\n      role_title: roleTitle,\n      detail_status: row.detail_status || 'normalized',\n      source_url: row.detail_url || row.source_url || null,\n      raw_summary: rawText ? String(rawText).slice(0, 1200) : title || null,\n    }\n  };\n});\n"
+      }
+    },
+    {
+      "id": "9",
+      "name": "Insert Normalized",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1960,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/normalized_events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch AFM Holdings CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch AFM Holdings CSV": {
+      "main": [
+        [
+          {
+            "node": "Read CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read CSV": {
+      "main": [
+        [
+          {
+            "node": "Set Source Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Source Fields": {
+      "main": [
+        [
+          {
+            "node": "Create Row Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Row Hash": {
+      "main": [
+        [
+          {
+            "node": "Upsert Raw Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Raw Events": {
+      "main": [
+        [
+          {
+            "node": "Compute Simple Direction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Simple Direction": {
+      "main": [
+        [
+          {
+            "node": "Normalize Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Events": {
+      "main": [
+        [
+          {
+            "node": "Insert Normalized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "id": "afm_substantial_holdings_ingest"
+}

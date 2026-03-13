@@ -1,0 +1,291 @@
+{
+  "name": "Euronext Company News Ingest",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2",
+      "name": "Fetch Euronext News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "url": "https://live.euronext.com/en/markets/amsterdam/company-news",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Extract News Cards",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1.2,
+      "position": [
+        640,
+        300
+      ],
+      "parameters": {
+        "html": "={{$json.data}}",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "titles",
+              "cssSelector": "a",
+              "returnValue": "text"
+            },
+            {
+              "key": "links",
+              "cssSelector": "a",
+              "returnValue": "attribute",
+              "attribute": "href"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4",
+      "name": "Create Candidate Events",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const titles = $json.titles || [];\nconst links = $json.links || [];\nconst rows = [];\nfor (let i = 0; i < Math.min(titles.length, links.length); i++) {\n  const title = String(titles[i] || '').trim();\n  const link = String(links[i] || '').trim();\n  if (!title || !link) continue;\n  const keep = /major shareholding|mandatory notification of trade|merger|acquisition|transfer|financial transaction|takeover|share introduction|issue/i.test(title);\n  if (!keep) continue;\n  rows.push({\n    source: 'euronext_news',\n    source_type: 'company_news_listing',\n    title,\n    raw_text: title,\n    detail_url: link.startsWith('http') ? link : `https://live.euronext.com${link}`,\n    issuer_name: null,\n    person_name: null,\n    event_date: new Date().toISOString().slice(0,10)\n  });\n}\nreturn rows.map(r => ({ json: r }));"
+      }
+    },
+    {
+      "id": "5",
+      "name": "Fetch Detail Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "url": "={{$json.detail_url}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "6",
+      "name": "Extract Detail Text",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1.2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "html": "={{$json.data}}",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "headline",
+              "cssSelector": "h1",
+              "returnValue": "text"
+            },
+            {
+              "key": "body",
+              "cssSelector": "body",
+              "returnValue": "text"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7",
+      "name": "Shape Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        300
+      ],
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const j = item.json;\n  return { json: {\n    source: 'euronext_news',\n    source_type: 'detail_page',\n    title: j.headline || '',\n    raw_text: j.body || '',\n    detail_url: $('Fetch Detail Page').item.json.detail_url,\n    issuer_name: null,\n    person_name: null,\n    event_date: new Date().toISOString().slice(0,10)\n  }};\n});"
+      }
+    },
+    {
+      "id": "8",
+      "name": "Normalize Events",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        300
+      ],
+      "parameters": {
+        "jsCode": "function toNumber(value) {\n  if (value === null || value === undefined || value === '') return null;\n  if (typeof value === 'number') return Number.isFinite(value) ? value : null;\n  const cleaned = String(value)\n    .replace(/\\./g, '')\n    .replace(',', '.')\n    .replace(/[^\\d.-]/g, '');\n  const parsed = Number(cleaned);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction normalizeName(value) {\n  if (!value) return null;\n  return String(value)\n    .trim()\n    .replace(/\\s+/g, ' ')\n    .replace(/\bN\\.V\\.\b/gi, 'NV')\n    .replace(/\bB\\.V\\.\b/gi, 'BV');\n}\n\nfunction inferEventClass(source, title = '', rawText = '') {\n  const haystack = `${title} ${rawText}`.toLowerCase();\n\n  if (source === 'afm_mar19') return { eventClass: 'insider_transaction', eventSubclass: inferTransactionSubclass(haystack) };\n  if (source === 'afm_substantial_holdings') return { eventClass: 'ownership_shift', eventSubclass: inferOwnershipSubclass(haystack) };\n  if (source === 'euronext_news') return { eventClass: inferNewsClass(haystack), eventSubclass: inferNewsSubclass(haystack) };\n  if (source === 'afm_inside_information') return { eventClass: 'inside_information', eventSubclass: inferNewsSubclass(haystack) };\n  if (source === 'exa_private_liquidity') return { eventClass: 'private_liquidity', eventSubclass: inferNewsSubclass(haystack) };\n  return { eventClass: 'unknown', eventSubclass: 'unknown' };\n}\n\nfunction inferTransactionSubclass(text) {\n  if (text.includes('vervreemding') || text.includes('verkoop') || text.includes('sale') || text.includes('disposal')) return 'sale_or_disposal';\n  if (text.includes('verwerving') || text.includes('acquisition') || text.includes('purchase')) return 'acquisition';\n  if (text.includes('uitoefening') || text.includes('omwisseling') || text.includes('exercise')) return 'exercise_or_conversion';\n  if (text.includes('grant') || text.includes('award')) return 'grant_or_award';\n  return 'other';\n}\n\nfunction inferOwnershipSubclass(text) {\n  if (text.includes('disposal') || text.includes('reduction') || text.includes('decrease') || text.includes('lower')) return 'ownership_reduction';\n  if (text.includes('acquisition') || text.includes('increase') || text.includes('higher')) return 'ownership_increase';\n  return 'ownership_change';\n}\n\nfunction inferNewsClass(text) {\n  if (text.includes('major shareholding')) return 'ownership_shift';\n  if (text.includes('mandatory notification of trade')) return 'insider_transaction';\n  if (text.includes('merger') || text.includes('acquisition') || text.includes('takeover') || text.includes('transfer')) return 'corporate_transaction';\n  if (text.includes('financial transaction') || text.includes('placement') || text.includes('secondary')) return 'corporate_transaction';\n  return 'news_event';\n}\n\nfunction inferNewsSubclass(text) {\n  if (text.includes('secondary')) return 'secondary_sale';\n  if (text.includes('block trade')) return 'block_trade';\n  if (text.includes('placement')) return 'placement';\n  if (text.includes('takeover')) return 'takeover';\n  if (text.includes('merger')) return 'merger';\n  if (text.includes('acquisition')) return 'acquisition';\n  if (text.includes('shareholding')) return 'shareholding_notification';\n  return 'other';\n}\n\nfunction inferDirection(text = '') {\n  const haystack = text.toLowerCase();\n  if (/(sale|verkoop|disposal|vervreemding|reduction|decrease)/.test(haystack)) return 'outflow';\n  if (/(acquisition|purchase|verwerving|increase)/.test(haystack)) return 'inflow';\n  return 'unknown';\n}\n\nconst input = items.map((item) => item.json);\n\nreturn input.map((row) => {\n  const source = row.source || 'unknown';\n  const issuer = normalizeName(row.issuer_name || row['Uitgevende instelling'] || row.issuer || row.company);\n  const person = normalizeName(row.person_name || row['Meldingsplichtige'] || row['Person obliged to notify'] || row.notifiable);\n  const title = row.title || '';\n  const rawText = row.raw_text || row.body || row.description || '';\n  const roleTitle = row.role_title || row['Positie'] || row.position || null;\n  const price = toNumber(row.price || row['Prijs'] || row.transaction_price);\n  const quantity = toNumber(row.quantity || row['Aantal'] || row.transaction_quantity);\n  const estimatedValue = price !== null && quantity !== null ? Number((price * quantity).toFixed(2)) : null;\n  const inferred = inferEventClass(source, title, rawText);\n  const direction = inferDirection(`${title} ${rawText} ${row.transaction_type || ''} ${row.transaction_category || ''}`);\n\n  return {\n    json: {\n      raw_event_id: row.id || row.raw_event_id || null,\n      issuer_name_normalized: issuer,\n      person_name_normalized: person,\n      event_date: row.event_date || row['Transactie'] || row['Date of transaction'] || null,\n      source,\n      event_class: inferred.eventClass,\n      event_subclass: inferred.eventSubclass,\n      transaction_direction: direction,\n      price,\n      quantity,\n      currency: row.currency || row['Eenheid'] || row.unit || null,\n      estimated_value: estimatedValue,\n      role_title: roleTitle,\n      detail_status: row.detail_status || 'normalized',\n      source_url: row.detail_url || row.source_url || null,\n      raw_summary: rawText ? String(rawText).slice(0, 1200) : title || null,\n    }\n  };\n});\n"
+      }
+    },
+    {
+      "id": "9",
+      "name": "Insert Normalized",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1960,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/normalized_events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Euronext News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Euronext News": {
+      "main": [
+        [
+          {
+            "node": "Extract News Cards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract News Cards": {
+      "main": [
+        [
+          {
+            "node": "Create Candidate Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Candidate Events": {
+      "main": [
+        [
+          {
+            "node": "Fetch Detail Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Detail Page": {
+      "main": [
+        [
+          {
+            "node": "Extract Detail Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Detail Text": {
+      "main": [
+        [
+          {
+            "node": "Shape Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Event": {
+      "main": [
+        [
+          {
+            "node": "Normalize Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Events": {
+      "main": [
+        [
+          {
+            "node": "Insert Normalized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "id": "euronext_company_news_ingest"
+}
