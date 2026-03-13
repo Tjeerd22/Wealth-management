@@ -56,12 +56,12 @@
           "values": [
             {
               "key": "titles",
-              "cssSelector": "a",
+              "cssSelector": "a[href*='/en/products/equities/company-news']",
               "returnValue": "text"
             },
             {
               "key": "links",
-              "cssSelector": "a",
+              "cssSelector": "a[href*='/en/products/equities/company-news']",
               "returnValue": "attribute",
               "attribute": "href"
             }
@@ -79,7 +79,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const titles = $json.titles || [];\nconst links = $json.links || [];\nconst rows = [];\nfor (let i = 0; i < Math.min(titles.length, links.length); i++) {\n  const title = String(titles[i] || '').trim();\n  const link = String(links[i] || '').trim();\n  if (!title || !link) continue;\n  const keep = /major shareholding|mandatory notification of trade|merger|acquisition|transfer|financial transaction|takeover|share introduction|issue/i.test(title);\n  if (!keep) continue;\n  rows.push({\n    source: 'euronext_news',\n    source_type: 'company_news_listing',\n    title,\n    raw_text: title,\n    detail_url: link.startsWith('http') ? link : `https://live.euronext.com${link}`,\n    issuer_name: null,\n    person_name: null,\n    event_date: new Date().toISOString().slice(0,10)\n  });\n}\nreturn rows.map(r => ({ json: r }));"
+        "jsCode": "const crypto = require('crypto');\nconst titles = $json.titles || [];\nconst links = $json.links || [];\nconst rows = [];\n\nfor (let i = 0; i < Math.min(titles.length, links.length); i++) {\n  const title = String(titles[i] || '').trim();\n  const link = String(links[i] || '').trim();\n  if (!title || !link) continue;\n\n  const keep = /major shareholding|mandatory notification of trade|merger|acquisition|transfer|financial transaction|takeover|share introduction|issue|secondary|block trade|placement/i.test(title);\n  if (!keep) continue;\n\n  const detailUrl = link.startsWith('http') ? link : `https://live.euronext.com${link}`;\n  const eventDate = new Date().toISOString().slice(0, 10);\n  const rowHash = crypto.createHash('md5').update(['euronext_news', detailUrl, title].join('|')).digest('hex');\n\n  rows.push({\n    source: 'euronext_news',\n    source_type: 'company_news_listing',\n    title,\n    raw_text: title,\n    detail_url: detailUrl,\n    event_date: eventDate,\n    row_hash: rowHash\n  });\n}\n\nreturn rows.map(r => ({ json: r }));"
       }
     },
     {
@@ -139,7 +139,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "return items.map(item => {\n  const j = item.json;\n  return { json: {\n    source: 'euronext_news',\n    source_type: 'detail_page',\n    title: j.headline || '',\n    raw_text: j.body || '',\n    detail_url: $('Fetch Detail Page').item.json.detail_url,\n    issuer_name: null,\n    person_name: null,\n    event_date: new Date().toISOString().slice(0,10)\n  }};\n});"
+        "jsCode": "return items.map((item, index) => {\n  const j = item.json;\n  const sourceItem = $('Create Candidate Events').all()[index]?.json || {};\n  const body = String(j.body || '').slice(0, 8000);\n  const title = String(j.headline || sourceItem.title || '').trim();\n\n  return {\n    json: {\n      source: 'euronext_news',\n      source_type: 'detail_page',\n      title,\n      raw_text: body,\n      detail_url: sourceItem.detail_url || null,\n      event_date: sourceItem.event_date || new Date().toISOString().slice(0, 10),\n      row_hash: sourceItem.row_hash || null,\n      issuer_name: null,\n      person_name: null\n    }\n  };\n});"
       }
     },
     {
@@ -152,7 +152,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "function toNumber(value) {\n  if (value === null || value === undefined || value === '') return null;\n  if (typeof value === 'number') return Number.isFinite(value) ? value : null;\n  const cleaned = String(value)\n    .replace(/\\./g, '')\n    .replace(',', '.')\n    .replace(/[^\\d.-]/g, '');\n  const parsed = Number(cleaned);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction normalizeName(value) {\n  if (!value) return null;\n  return String(value)\n    .trim()\n    .replace(/\\s+/g, ' ')\n    .replace(/\bN\\.V\\.\b/gi, 'NV')\n    .replace(/\bB\\.V\\.\b/gi, 'BV');\n}\n\nfunction inferEventClass(source, title = '', rawText = '') {\n  const haystack = `${title} ${rawText}`.toLowerCase();\n\n  if (source === 'afm_mar19') return { eventClass: 'insider_transaction', eventSubclass: inferTransactionSubclass(haystack) };\n  if (source === 'afm_substantial_holdings') return { eventClass: 'ownership_shift', eventSubclass: inferOwnershipSubclass(haystack) };\n  if (source === 'euronext_news') return { eventClass: inferNewsClass(haystack), eventSubclass: inferNewsSubclass(haystack) };\n  if (source === 'afm_inside_information') return { eventClass: 'inside_information', eventSubclass: inferNewsSubclass(haystack) };\n  if (source === 'exa_private_liquidity') return { eventClass: 'private_liquidity', eventSubclass: inferNewsSubclass(haystack) };\n  return { eventClass: 'unknown', eventSubclass: 'unknown' };\n}\n\nfunction inferTransactionSubclass(text) {\n  if (text.includes('vervreemding') || text.includes('verkoop') || text.includes('sale') || text.includes('disposal')) return 'sale_or_disposal';\n  if (text.includes('verwerving') || text.includes('acquisition') || text.includes('purchase')) return 'acquisition';\n  if (text.includes('uitoefening') || text.includes('omwisseling') || text.includes('exercise')) return 'exercise_or_conversion';\n  if (text.includes('grant') || text.includes('award')) return 'grant_or_award';\n  return 'other';\n}\n\nfunction inferOwnershipSubclass(text) {\n  if (text.includes('disposal') || text.includes('reduction') || text.includes('decrease') || text.includes('lower')) return 'ownership_reduction';\n  if (text.includes('acquisition') || text.includes('increase') || text.includes('higher')) return 'ownership_increase';\n  return 'ownership_change';\n}\n\nfunction inferNewsClass(text) {\n  if (text.includes('major shareholding')) return 'ownership_shift';\n  if (text.includes('mandatory notification of trade')) return 'insider_transaction';\n  if (text.includes('merger') || text.includes('acquisition') || text.includes('takeover') || text.includes('transfer')) return 'corporate_transaction';\n  if (text.includes('financial transaction') || text.includes('placement') || text.includes('secondary')) return 'corporate_transaction';\n  return 'news_event';\n}\n\nfunction inferNewsSubclass(text) {\n  if (text.includes('secondary')) return 'secondary_sale';\n  if (text.includes('block trade')) return 'block_trade';\n  if (text.includes('placement')) return 'placement';\n  if (text.includes('takeover')) return 'takeover';\n  if (text.includes('merger')) return 'merger';\n  if (text.includes('acquisition')) return 'acquisition';\n  if (text.includes('shareholding')) return 'shareholding_notification';\n  return 'other';\n}\n\nfunction inferDirection(text = '') {\n  const haystack = text.toLowerCase();\n  if (/(sale|verkoop|disposal|vervreemding|reduction|decrease)/.test(haystack)) return 'outflow';\n  if (/(acquisition|purchase|verwerving|increase)/.test(haystack)) return 'inflow';\n  return 'unknown';\n}\n\nconst input = items.map((item) => item.json);\n\nreturn input.map((row) => {\n  const source = row.source || 'unknown';\n  const issuer = normalizeName(row.issuer_name || row['Uitgevende instelling'] || row.issuer || row.company);\n  const person = normalizeName(row.person_name || row['Meldingsplichtige'] || row['Person obliged to notify'] || row.notifiable);\n  const title = row.title || '';\n  const rawText = row.raw_text || row.body || row.description || '';\n  const roleTitle = row.role_title || row['Positie'] || row.position || null;\n  const price = toNumber(row.price || row['Prijs'] || row.transaction_price);\n  const quantity = toNumber(row.quantity || row['Aantal'] || row.transaction_quantity);\n  const estimatedValue = price !== null && quantity !== null ? Number((price * quantity).toFixed(2)) : null;\n  const inferred = inferEventClass(source, title, rawText);\n  const direction = inferDirection(`${title} ${rawText} ${row.transaction_type || ''} ${row.transaction_category || ''}`);\n\n  return {\n    json: {\n      raw_event_id: row.id || row.raw_event_id || null,\n      issuer_name_normalized: issuer,\n      person_name_normalized: person,\n      event_date: row.event_date || row['Transactie'] || row['Date of transaction'] || null,\n      source,\n      event_class: inferred.eventClass,\n      event_subclass: inferred.eventSubclass,\n      transaction_direction: direction,\n      price,\n      quantity,\n      currency: row.currency || row['Eenheid'] || row.unit || null,\n      estimated_value: estimatedValue,\n      role_title: roleTitle,\n      detail_status: row.detail_status || 'normalized',\n      source_url: row.detail_url || row.source_url || null,\n      raw_summary: rawText ? String(rawText).slice(0, 1200) : title || null,\n    }\n  };\n});\n"
+        "jsCode": "function toNumber(value) {\n  if (value === null || value === undefined || value === '') return null;\n  if (typeof value === 'number') return Number.isFinite(value) ? value : null;\n  const cleaned = String(value)\n    .trim()\n    .replace(/\\s+/g, '')\n    .replace(/\\.(?=\\d{3}(\\D|$))/g, '')\n    .replace(',', '.')\n    .replace(/[^\\d.-]/g, '');\n  const parsed = Number(cleaned);\n  return Number.isFinite(parsed) ? parsed : null;\n}\n\nfunction parseDate(value) {\n  if (!value) return null;\n  const raw = String(value).trim();\n  if (!raw) return null;\n  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;\n\n  const normalized = raw.replace(/\\./g, '-').replace(/\\//g, '-');\n  const parts = normalized.split('-').map((part) => part.trim());\n  if (parts.length === 3) {\n    if (parts[0].length === 4) {\n      const [y, m, d] = parts;\n      if (y && m && d) return `${y.padStart(4, '0')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;\n    }\n    const [d, m, y] = parts;\n    if (y && m && d) return `${y.padStart(4, '0')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;\n  }\n\n  const parsed = new Date(raw);\n  if (!Number.isNaN(parsed.getTime())) {\n    return parsed.toISOString().slice(0, 10);\n  }\n  return null;\n}\n\nfunction normalizeName(value) {\n  if (!value) return null;\n  return String(value)\n    .trim()\n    .replace(/\\s+/g, ' ')\n    .replace(/\\bN\\.V\\.\\b/gi, 'NV')\n    .replace(/\\bB\\.V\\.\\b/gi, 'BV')\n    .replace(/^\\W+|\\W+$/g, '') || null;\n}\n\nfunction inferEventClass(source, title = '', rawText = '') {\n  const haystack = `${title} ${rawText}`.toLowerCase();\n\n  if (source === 'afm_mar19') return { eventClass: 'insider_transaction', eventSubclass: inferTransactionSubclass(haystack) };\n  if (source === 'afm_substantial_holdings') return { eventClass: 'ownership_shift', eventSubclass: inferOwnershipSubclass(haystack) };\n  if (source === 'euronext_news') return { eventClass: inferNewsClass(haystack), eventSubclass: inferNewsSubclass(haystack) };\n  if (source === 'afm_inside_information') return { eventClass: 'inside_information', eventSubclass: inferNewsSubclass(haystack) };\n  if (source === 'exa_private_liquidity') return { eventClass: 'private_liquidity', eventSubclass: inferNewsSubclass(haystack) };\n  return { eventClass: 'unknown', eventSubclass: 'unknown' };\n}\n\nfunction inferTransactionSubclass(text) {\n  if (/(vervreemding|verkoop|sale|disposal|sold|afbouw)/.test(text)) return 'sale_or_disposal';\n  if (/(verwerving|acquisition|purchase|koop)/.test(text)) return 'acquisition';\n  if (/(uitoefening|omwisseling|exercise|conversion)/.test(text)) return 'exercise_or_conversion';\n  if (/(grant|award|toekenning)/.test(text)) return 'grant_or_award';\n  return 'other';\n}\n\nfunction inferOwnershipSubclass(text) {\n  if (/(disposal|reduction|decrease|lower|afname|vermindering|below|onderschrijding)/.test(text)) return 'ownership_reduction';\n  if (/(acquisition|increase|higher|stijging|toename|boven)/.test(text)) return 'ownership_increase';\n  return 'ownership_change';\n}\n\nfunction inferNewsClass(text) {\n  if (text.includes('major shareholding')) return 'ownership_shift';\n  if (text.includes('mandatory notification of trade')) return 'insider_transaction';\n  if (/(merger|acquisition|takeover|transfer|placement|secondary|block trade)/.test(text)) return 'corporate_transaction';\n  return 'news_event';\n}\n\nfunction inferNewsSubclass(text) {\n  if (text.includes('secondary')) return 'secondary_sale';\n  if (text.includes('block trade')) return 'block_trade';\n  if (text.includes('placement')) return 'placement';\n  if (text.includes('takeover')) return 'takeover';\n  if (text.includes('merger')) return 'merger';\n  if (text.includes('acquisition')) return 'acquisition';\n  if (text.includes('shareholding')) return 'shareholding_notification';\n  return 'other';\n}\n\nfunction inferDirection(text = '') {\n  const haystack = text.toLowerCase();\n  if (/(sale|verkoop|disposal|vervreemding|reduction|decrease|afname|vermindering|sold|exit)/.test(haystack)) return 'outflow';\n  if (/(acquisition|purchase|verwerving|increase|toename|buy|invest)/.test(haystack)) return 'inflow';\n  return 'unknown';\n}\n\nconst input = items.map((item) => item.json);\n\nreturn input.map((row) => {\n  const source = row.source || 'unknown';\n  const issuer = normalizeName(row.issuer_name || row['Uitgevende instelling'] || row['Issuing institution'] || row.issuer || row.company);\n  const person = normalizeName(row.person_name || row['Meldingsplichtige'] || row['Person obliged to notify'] || row.notifiable);\n  const title = row.title || '';\n  const rawText = row.raw_text || row.body || row.description || '';\n  const roleTitle = row.role_title || row['Positie'] || row.position || null;\n  const price = toNumber(row.price || row['Prijs'] || row.transaction_price);\n  const quantity = toNumber(row.quantity || row['Aantal'] || row.transaction_quantity);\n  const estimatedValue = row.estimated_value !== undefined && row.estimated_value !== null\n    ? toNumber(row.estimated_value)\n    : (price !== null && quantity !== null ? Number((price * quantity).toFixed(2)) : null);\n  const inferred = inferEventClass(source, title, rawText);\n  const direction = row.transaction_direction || inferDirection(`${title} ${rawText} ${row.transaction_type || ''} ${row.transaction_category || ''}`);\n\n  return {\n    json: {\n      raw_event_id: row.id || row.raw_event_id || null,\n      issuer_name_normalized: issuer,\n      person_name_normalized: person,\n      event_date: parseDate(row.event_date || row['Transactie'] || row['Date of transaction']) || null,\n      source,\n      event_class: row.event_class || inferred.eventClass,\n      event_subclass: row.event_subclass || inferred.eventSubclass,\n      transaction_direction: direction,\n      price,\n      quantity,\n      currency: row.currency || row['Eenheid'] || row.unit || null,\n      estimated_value: estimatedValue,\n      role_title: roleTitle,\n      detail_status: row.detail_status || 'normalized',\n      source_url: row.detail_url || row.source_url || null,\n      raw_summary: rawText ? String(rawText).slice(0, 1200) : title || null,\n    }\n  };\n});\n"
       }
     },
     {
@@ -166,7 +166,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.SUPABASE_URL}}/rest/v1/normalized_events",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/normalized_events?on_conflict=raw_event_id",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -181,6 +181,48 @@
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}"
+      }
+    },
+    {
+      "id": "10",
+      "name": "Upsert Raw Events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1740,
+        120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/raw_events?on_conflict=row_hash",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
             }
           ]
         },
@@ -260,6 +302,11 @@
     "Shape Event": {
       "main": [
         [
+          {
+            "node": "Upsert Raw Events",
+            "type": "main",
+            "index": 0
+          },
           {
             "node": "Normalize Events",
             "type": "main",
