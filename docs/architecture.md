@@ -109,3 +109,18 @@ Issuer clustering
 Exa lane
 Contact enrichment
 Operational shortlist
+
+
+## Operational shortlist gate
+
+To keep false positives low, issuer opportunities should only be promoted when:
+- at least 2 kept events exist for the issuer in the rolling window
+- aggregate issuer score is at least 12
+- institutional-noise and technical-only events are excluded
+- output is capped to the top 200 issuers per cycle
+
+## Reliability requirements
+
+- Every source lane must write to `raw_events` with a deterministic `row_hash`.
+- Normalized and scored writes should use idempotent upserts (`on_conflict`).
+- Parser drift checks are mandatory for AFM and Euronext selectors.

@@ -22,6 +22,8 @@ This pack is designed to help you build a Dutch wealth-management demand engine 
   Tight AI prompts for qualification and outreach angles.
 - `examples/codex-task.md`
   A ready-to-paste Codex task prompt.
+- `RUNBOOK.md`
+  Operational setup, quality gates, and troubleshooting for running the engine.
 
 ## The actual output you are building
 
@@ -55,12 +57,12 @@ For local development or Codex:
 
 ## Notes on the starter workflows
 
-These workflows are meant as strong starting templates, not perfect final production flows.
-You will still need to:
+These workflows are meant as strong starting templates with improved deterministic parsing and scoring.
+You should still:
 - confirm the exact AFM export URLs you use
-- confirm the CSS selectors or HTML extraction strategy for AFM detail pages and Euronext detail pages
+- periodically verify Euronext selectors and extraction strategy
 - connect your own enrichment provider if you want LinkedIn or email discovery
-- tune your score thresholds after looking at real records
+- tune score thresholds against live data and false-positive rates
 
 ## Suggested next move with Codex
 
