@@ -1,7 +1,7 @@
 {
   "raw_records": 97,
   "post_filter_records": 42,
-  "review_records": 30,
+  "review_records": 20,
   "match_ready_records": 0,
   "excluded_institutions": 55,
   "low_confidence_records": 97,
@@ -11,8 +11,8 @@
     "exa_enriched": 0
   },
   "review_bucket_stats": {
-    "A": 1,
-    "B": 30,
+    "A": 3,
+    "B": 28,
     "C": 11
   },
   "blocked_by_counts": [
@@ -30,7 +30,7 @@
     ],
     [
       "low_natural_person_confidence",
-      36
+      33
     ],
     [
       "low_nl_relevance",

@@ -1,6 +1,7 @@
 export type PersonType = 'unknown' | 'natural_person' | 'legal_entity' | 'family_holding';
 export type InstitutionalRisk = 'low' | 'medium' | 'high' | 'unknown';
 export type ReviewBucket = 'A' | 'B' | 'C';
+export type ReviewAction = 'manual_context_check' | 'manual_person_verify' | 'discard_low_relevance' | 'watchlist_only';
 export type BlockedReason =
   | 'missing_verified_context'
   | 'unconfirmed_disposal'
@@ -72,10 +73,13 @@ export interface NormalizedSignalRecord {
   evidence_strength: number;
   natural_person_confidence: number;
   nl_relevance_score: number;
+  issuer_desirability_score: number;
   institutional_risk: InstitutionalRisk;
   contactability_confidence: number;
   signal_confidence: number;
+  review_priority_score: number;
   review_bucket: ReviewBucket;
+  review_action: ReviewAction;
   blocked_by: BlockedReason[];
   match_ready: boolean;
   raw_source_payload_summary: string;
@@ -97,8 +101,11 @@ export interface ReviewRecord {
   source_url: string;
   natural_person_confidence: number;
   nl_relevance_score: number;
+  issuer_desirability_score: number;
+  review_priority_score: number;
   institutional_risk: InstitutionalRisk;
   review_bucket: ReviewBucket;
+  review_action: ReviewAction;
   blocked_by: BlockedReason[];
   signal_confidence: number;
   match_ready: boolean;

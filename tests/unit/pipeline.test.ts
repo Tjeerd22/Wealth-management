@@ -9,7 +9,8 @@ import { scoreSignal } from '../../src/scoring/scoreSignal.js';
 import { applySignalGates } from '../../src/filters/signalGates.js';
 import { defaultInput } from '../../src/config.js';
 import { scoreNlRelevance } from '../../src/scoring/scoreNlRelevance.js';
-import { exportReviewDataset } from '../../src/export/exportReviewDataset.js';
+import { scoreIssuerDesirability } from '../../src/scoring/scoreIssuerDesirability.js';
+import { exportReviewDataset, rankReviewRecords, topByIssuer } from '../../src/export/exportReviewDataset.js';
 
 const mar19Fixture = readFileSync(new URL('../fixtures/afm_mar19_sample.csv', import.meta.url), 'utf8');
 const substantialFixture = readFileSync(new URL('../fixtures/afm_substantial_sample.csv', import.meta.url), 'utf8');
@@ -75,6 +76,23 @@ describe('connector os dutch liquidity pipeline', () => {
     expect(record.natural_person_confidence).toBeLessThanOrEqual(0.65);
   });
 
+  it('treats dutch comma-prefix human names as strong personal patterns', () => {
+    const record = normalizeRecord({
+      personName: 'Dijk, Van J.',
+      companyName: 'ASML Holding NV',
+      signalDate: '2026-03-02',
+      signalType: 'pdmr_transaction_unconfirmed',
+      signalDetail: 'Dutch surname prefix case',
+      sourceName: 'afm_mar19',
+      sourceUrl: 'fixture',
+      evidenceType: 'afm_csv_filing',
+      evidenceStrength: 0.66,
+      rawSummary: 'fixture',
+    });
+    record.natural_person_confidence = scoreNaturalPersonConfidence(record);
+    expect(record.natural_person_confidence).toBeGreaterThanOrEqual(0.78);
+  });
+
   it('preserves Dutch surname prefixes for dedupe keys', () => {
     const record = normalizeRecord({
       personName: 'Jan van Dijk',
@@ -108,7 +126,6 @@ describe('connector os dutch liquidity pipeline', () => {
     expect(deduped).toHaveLength(2);
   });
 
-
   it('removes exact duplicate rows without dropping distinct dated events', () => {
     const a = normalizeRecord({ personName: 'Jan de Vries', companyName: 'Adyen NV', signalDate: '2026-03-01', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A', sourceName: 'afm_mar19', sourceUrl: 'a', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'a' });
     const b = normalizeRecord({ personName: 'Jan de Vries', companyName: 'Adyen NV', signalDate: '2026-03-01', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A', sourceName: 'afm_mar19', sourceUrl: 'b', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'b' });
@@ -135,12 +152,14 @@ describe('connector os dutch liquidity pipeline', () => {
     record.role = 'Founder family vehicle';
     record.company_domain = 'besi.com';
     record.nl_relevance_score = scoreNlRelevance(record);
+    record.issuer_desirability_score = scoreIssuerDesirability(record);
     scoreSignal(record, 45);
     record.match_ready = true;
     applySignalGates(record, defaultInput);
     expect(record.match_ready).toBe(false);
     expect(record.blocked_by).toContain('low_natural_person_confidence');
     expect(record.review_bucket).toBe('C');
+    expect(record.review_action).toBe('manual_person_verify');
   });
 
   it('passes a strong natural-person reduction into match-ready while keeping blockers empty', () => {
@@ -166,6 +185,7 @@ describe('connector os dutch liquidity pipeline', () => {
     record.person_type = 'natural_person';
     record.natural_person_confidence = scoreNaturalPersonConfidence(record);
     record.nl_relevance_score = scoreNlRelevance(record);
+    record.issuer_desirability_score = scoreIssuerDesirability(record);
     scoreSignal(record, 45);
     record.match_ready = true;
     applySignalGates(record, defaultInput);
@@ -173,6 +193,7 @@ describe('connector os dutch liquidity pipeline', () => {
     expect(record.match_ready).toBe(true);
     expect(record.blocked_by).toHaveLength(0);
     expect(record.review_bucket).toBe('A');
+    expect(record.review_action).toBe('watchlist_only');
   });
 
   it('adds score spread and explicit blockers to MAR 19 records without inflating match-ready', () => {
@@ -209,6 +230,7 @@ describe('connector os dutch liquidity pipeline', () => {
         record.company_domain = 'adyen.com';
       }
       record.nl_relevance_score = scoreNlRelevance(record);
+      record.issuer_desirability_score = scoreIssuerDesirability(record);
       scoreSignal(record, 45);
       record.match_ready = true;
       applySignalGates(record, defaultInput);
@@ -221,13 +243,58 @@ describe('connector os dutch liquidity pipeline', () => {
     expect(weak.blocked_by).toContain('low_nl_relevance');
   });
 
-  it('sorts review exports by bucket first and then confidence', async () => {
-    const a = normalizeRecord({ personName: 'Jan de Vries', companyName: 'Adyen NV', signalDate: '2026-03-01', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
-    const b = normalizeRecord({ personName: 'Klaas', companyName: 'Random Plc', signalDate: '2026-03-01', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'B', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
-    a.natural_person_confidence = 0.78; a.nl_relevance_score = 0.8; a.signal_confidence = 0.52; a.review_bucket = 'A';
-    b.natural_person_confidence = 0.3; b.nl_relevance_score = 0.35; b.signal_confidence = 0.7; b.review_bucket = 'C';
-    const review = await exportReviewDataset([b, a], 10);
+  it('ranks review exports by bucket and review priority with cluster control', async () => {
+    const a = normalizeRecord({ personName: 'Jan de Vries', companyName: 'Adyen NV', signalDate: '2026-03-18', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    const b = normalizeRecord({ personName: 'Klaas de Boer', companyName: 'Adyen NV', signalDate: '2026-03-17', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'B', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    const c = normalizeRecord({ personName: 'Piet van Dam', companyName: 'ASML Holding NV', signalDate: '2026-03-18', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'C', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    for (const [idx, record] of [a, b, c].entries()) {
+      record.natural_person_confidence = 0.78;
+      record.nl_relevance_score = idx === 1 ? 0.79 : 0.8;
+      record.issuer_desirability_score = idx === 2 ? 0.88 : 0.9;
+      record.signal_confidence = 0.58;
+      record.review_bucket = 'A';
+      record.review_action = 'manual_context_check';
+      record.role = 'CFO';
+      record.company_domain = idx === 2 ? 'asml.com' : 'adyen.com';
+    }
+    const ranked = rankReviewRecords([a, b, c]);
+    expect(ranked[0].company_name).toBe('Adyen NV');
+    expect(ranked[1].company_name).toBe('ASML Holding NV');
+    expect(ranked[0].review_priority_score).toBeGreaterThan(ranked[1].review_priority_score);
+    expect(ranked[1].review_priority_score).toBeGreaterThan(ranked[2].review_priority_score);
+
+    const review = await exportReviewDataset([b, a, c], 10);
     expect(review[0].review_bucket).toBe('A');
-    expect(review[1].review_bucket).toBe('C');
+    expect(review[0].review_priority_score).toBeGreaterThan(review[2].review_priority_score);
+  });
+
+  it('exports top-by-issuer views and keeps review_action aligned with blockers', () => {
+    const low = normalizeRecord({ personName: 'Klaas', companyName: 'Random Plc', signalDate: '2026-03-01', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'B', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    low.natural_person_confidence = 0.62;
+    low.nl_relevance_score = 0.2;
+    low.issuer_desirability_score = 0.15;
+    low.signal_confidence = 0.28;
+    low.review_bucket = 'C';
+    low.blocked_by = ['low_nl_relevance'];
+    low.review_action = 'discard_low_relevance';
+
+    const issuerA1 = normalizeRecord({ personName: 'Jan de Vries', companyName: 'Adyen NV', signalDate: '2026-03-18', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A1', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    const issuerA2 = normalizeRecord({ personName: 'Piet de Vries', companyName: 'Adyen NV', signalDate: '2026-03-17', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A2', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    const issuerA3 = normalizeRecord({ personName: 'Koen de Vries', companyName: 'Adyen NV', signalDate: '2026-03-16', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A3', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    const issuerA4 = normalizeRecord({ personName: 'Milan de Vries', companyName: 'Adyen NV', signalDate: '2026-03-15', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A4', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    for (const record of [issuerA1, issuerA2, issuerA3, issuerA4]) {
+      record.natural_person_confidence = 0.78;
+      record.nl_relevance_score = 0.81;
+      record.issuer_desirability_score = 0.9;
+      record.signal_confidence = 0.58;
+      record.review_bucket = 'A';
+      record.review_action = 'manual_context_check';
+      record.role = 'CFO';
+      record.company_domain = 'adyen.com';
+    }
+
+    const byIssuer = topByIssuer([issuerA1, issuerA2, issuerA3, issuerA4, low], 3);
+    expect(byIssuer.filter((record) => record.company_name === 'Adyen NV')).toHaveLength(3);
+    expect(byIssuer.find((record) => record.company_name === 'Random Plc')?.review_action).toBe('discard_low_relevance');
   });
 });
