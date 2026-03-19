@@ -1,0 +1,21 @@
+export const inputSchema = {
+  title: 'Connector OS Dutch liquidity signals v1',
+  type: 'object',
+  schemaVersion: 1,
+  properties: {
+    runAfmMar19: { type: 'boolean', default: true },
+    runAfmSubstantialHoldings: { type: 'boolean', default: true },
+    runExaEnrichment: { type: 'boolean', default: false },
+    afmMar19CsvUrl: { type: 'string', default: '' },
+    afmSubstantialHoldingsCsvUrl: { type: 'string', default: '' },
+    lookbackDays: { type: 'integer', default: 45, minimum: 1, maximum: 365 },
+    minSignalConfidence: { type: 'number', default: 0.6, minimum: 0, maximum: 1 },
+    minNaturalPersonConfidence: { type: 'number', default: 0.6, minimum: 0, maximum: 1 },
+    excludeInstitutions: { type: 'boolean', default: true },
+    maxReviewRecords: { type: 'integer', default: 100, minimum: 1, maximum: 1000 },
+    maxMatchReadyRecords: { type: 'integer', default: 30, minimum: 1, maximum: 500 },
+    exaApiKey: { type: 'string', default: '', editor: 'textfield' },
+    debug: { type: 'boolean', default: false },
+  },
+  required: [],
+} as const;

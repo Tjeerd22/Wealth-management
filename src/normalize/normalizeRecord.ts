@@ -1,0 +1,56 @@
+import { deterministicId, splitName, surnameKey, titleCase } from '../utils/strings.js';
+import { toIsoDate } from '../utils/dates.js';
+import { NormalizedSignalRecord, PersonType } from '../types.js';
+
+interface NormalizeInput {
+  personName: string;
+  role?: string;
+  companyName: string;
+  signalType: string;
+  signalDate: string;
+  signalDetail: string;
+  sourceName: string;
+  sourceUrl: string;
+  evidenceType: string;
+  evidenceStrength: number;
+  rawSummary: string;
+  personType?: PersonType;
+  capitalInterestBefore?: number | null;
+  capitalInterestAfter?: number | null;
+  notes?: string[];
+}
+
+export function normalizeRecord(input: NormalizeInput): NormalizedSignalRecord {
+  const { firstName, lastName } = splitName(input.personName);
+  const signalDate = toIsoDate(input.signalDate);
+  return {
+    record_id: deterministicId(input.sourceName, input.personName, input.companyName, signalDate, input.signalType),
+    person_name: titleCase(input.personName),
+    person_last_name: surnameKey(lastName),
+    person_type: input.personType ?? 'unknown',
+    role: input.role ?? '',
+    company_name: input.companyName.trim(),
+    company_domain: '',
+    company_country: 'Netherlands',
+    signal_type: input.signalType,
+    signal_date: signalDate,
+    signal_detail: input.signalDetail,
+    signal_value_estimate: null,
+    signal_currency: '',
+    capital_interest_before: input.capitalInterestBefore ?? null,
+    capital_interest_after: input.capitalInterestAfter ?? null,
+    transaction_value: null,
+    source_name: input.sourceName,
+    source_url: input.sourceUrl,
+    evidence_type: input.evidenceType,
+    evidence_strength: input.evidenceStrength,
+    natural_person_confidence: firstName ? 0.4 : 0.2,
+    institutional_risk: 'unknown',
+    contactability_confidence: 0.1,
+    signal_confidence: 0,
+    match_ready: false,
+    raw_source_payload_summary: input.rawSummary,
+    notes: input.notes ?? [],
+    provenance_sources: [input.sourceName],
+  };
+}
