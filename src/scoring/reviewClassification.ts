@@ -1,4 +1,5 @@
 import { BlockedReason, NormalizedSignalRecord, ReviewBucket } from '../types.js';
+import { deriveReviewAction } from './reviewPriority.js';
 
 function addBlocked(record: NormalizedSignalRecord, reason: BlockedReason, note: string): void {
   if (!record.blocked_by.includes(reason)) record.blocked_by.push(reason);
@@ -12,9 +13,8 @@ export function resetReviewFlags(record: NormalizedSignalRecord): void {
 export function classifyReviewBucket(record: NormalizedSignalRecord): ReviewBucket {
   const likelyPerson = record.natural_person_confidence >= 0.6;
   const commercialInterest = record.nl_relevance_score >= 0.6 && record.signal_confidence >= 0.45;
-  const hasThinContext = !record.role && !record.enrichment_context;
 
-  if (likelyPerson && commercialInterest) return hasThinContext ? 'A' : 'A';
+  if (likelyPerson && commercialInterest) return 'A';
   if (likelyPerson && !commercialInterest) return 'B';
   if (record.natural_person_confidence >= 0.45 && record.nl_relevance_score >= 0.4) return 'B';
   return 'C';
@@ -46,4 +46,5 @@ export function applyBlockedByRules(record: NormalizedSignalRecord, minNaturalPe
   }
 
   record.review_bucket = classifyReviewBucket(record);
+  record.review_action = deriveReviewAction(record);
 }

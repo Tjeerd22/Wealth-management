@@ -1,4 +1,5 @@
-import { writeFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { defaultInput } from './src/config.ts';
 import { ingestAfmMar19 } from './src/sources/afmMar19.ts';
 import { ingestAfmSubstantialHoldings } from './src/sources/afmSubstantialHoldings.ts';
@@ -7,9 +8,10 @@ import { applyInstitutionalFilter } from './src/filters/institutionalFilter.ts';
 import { scoreNaturalPersonConfidence } from './src/filters/personConfidence.ts';
 import { enrichRecord } from './src/enrich/enrichRecord.ts';
 import { scoreNlRelevance } from './src/scoring/scoreNlRelevance.ts';
+import { scoreIssuerDesirability } from './src/scoring/scoreIssuerDesirability.ts';
 import { scoreSignal } from './src/scoring/scoreSignal.ts';
 import { applySignalGates } from './src/filters/signalGates.ts';
-import { toReviewRecord } from './src/export/exportReviewDataset.ts';
+import { rankReviewRecords, toReviewRecord, topByIssuer } from './src/export/exportReviewDataset.ts';
 import { toMatchReadyRecord } from './src/export/exportMatchReady.ts';
 import type { ActorInput, NormalizedSignalRecord } from './src/types.ts';
 
@@ -18,13 +20,15 @@ const input: ActorInput = {
   runExaEnrichment: false,
   afmMar19CsvUrl: 'audit_inputs/afm_mar19_current_2026-03-19.csv',
   afmSubstantialHoldingsCsvUrl: 'audit_inputs/afm_substantial_current_2026-03-19.csv',
-  maxReviewRecords: 30,
+  maxReviewRecords: 20,
   maxMatchReadyRecords: 30,
 };
 
-const bucketOrder = { A: 0, B: 1, C: 2 } as const;
-
 async function main() {
+  mkdirSync('audit_outputs', { recursive: true });
+  const beforeTop30Review = JSON.parse(execSync('git show HEAD^:audit_outputs/top30_review.json', { encoding: 'utf8' }));
+  const beforeSummary = JSON.parse(execSync('git show HEAD^:audit_outputs/run_summary.json', { encoding: 'utf8' }));
+
   const sourceStats = { afm_mar19: 0, afm_substantial: 0, exa_enriched: 0 };
   let records: NormalizedSignalRecord[] = [];
   const mar19 = await ingestAfmMar19(input.afmMar19CsvUrl);
@@ -41,6 +45,7 @@ async function main() {
     await enrichRecord(record, input);
     if (record.enrichment_context) sourceStats.exa_enriched += 1;
     record.nl_relevance_score = scoreNlRelevance(record);
+    record.issuer_desirability_score = scoreIssuerDesirability(record);
     scoreSignal(record, input.lookbackDays);
     record.match_ready = true;
     applySignalGates(record, input);
@@ -49,11 +54,9 @@ async function main() {
   }
 
   const postFilterRecords = input.excludeInstitutions ? records.filter((r) => r.institutional_risk !== 'high') : records;
-  const review = postFilterRecords
-    .filter((r) => r.signal_confidence >= 0.25)
-    .sort((a, b) => bucketOrder[a.review_bucket] - bucketOrder[b.review_bucket] || b.signal_confidence - a.signal_confidence || b.nl_relevance_score - a.nl_relevance_score)
-    .slice(0, input.maxReviewRecords)
-    .map(toReviewRecord);
+  const rankedReview = rankReviewRecords(postFilterRecords);
+  const topOverall = rankedReview.slice(0, input.maxReviewRecords).map(toReviewRecord);
+  const topPerIssuer = topByIssuer(postFilterRecords, 3);
   const matchReady = postFilterRecords
     .filter((r) => r.match_ready)
     .sort((a, b) => b.signal_confidence - a.signal_confidence)
@@ -62,7 +65,7 @@ async function main() {
   const summary = {
     raw_records: records.length,
     post_filter_records: postFilterRecords.length,
-    review_records: review.length,
+    review_records: topOverall.length,
     match_ready_records: matchReady.length,
     excluded_institutions: excludedInstitutions,
     low_confidence_records: lowConfidenceRecords,
@@ -78,9 +81,34 @@ async function main() {
     }, {} as Record<string, number>)).sort((a, b) => b[1] - a[1]),
   };
 
-  writeFileSync('audit_outputs/top30_review.json', JSON.stringify(review, null, 2) + '\n');
+  const comparison = {
+    before_summary: beforeSummary,
+    after_summary: summary,
+    before_top_review_sample: beforeTop30Review.slice(0, 10).map((record: Record<string, unknown>) => ({
+      record_id: record.record_id,
+      company_name: record.company_name,
+      person_name: record.person_name,
+      review_bucket: record.review_bucket,
+      signal_confidence: record.signal_confidence,
+      nl_relevance_score: record.nl_relevance_score,
+    })),
+    after_top_review_sample: topOverall.slice(0, 10).map((record) => ({
+      record_id: record.record_id,
+      company_name: record.company_name,
+      person_name: record.person_name,
+      review_bucket: record.review_bucket,
+      signal_confidence: record.signal_confidence,
+      review_priority_score: record.review_priority_score,
+      issuer_desirability_score: record.issuer_desirability_score,
+      review_action: record.review_action,
+    })),
+  };
+
+  writeFileSync('audit_outputs/top20_review_overall.json', JSON.stringify(topOverall, null, 2) + '\n');
+  writeFileSync('audit_outputs/top3_review_by_issuer.json', JSON.stringify(topPerIssuer, null, 2) + '\n');
   writeFileSync('audit_outputs/top30_match_ready.json', JSON.stringify(matchReady, null, 2) + '\n');
   writeFileSync('audit_outputs/run_summary.json', JSON.stringify(summary, null, 2) + '\n');
+  writeFileSync('audit_outputs/before_after_comparison.json', JSON.stringify(comparison, null, 2) + '\n');
   console.log(JSON.stringify(summary, null, 2));
 }
 
