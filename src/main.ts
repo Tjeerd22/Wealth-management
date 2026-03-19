@@ -12,6 +12,7 @@ import { exportRawArchive } from './export/exportRawArchive.js';
 import { exportReviewDataset } from './export/exportReviewDataset.js';
 import { exportMatchReady } from './export/exportMatchReady.js';
 import { scoreNlRelevance } from './scoring/scoreNlRelevance.js';
+import { scoreIssuerDesirability } from './scoring/scoreIssuerDesirability.js';
 import { ActorInput, NormalizedSignalRecord, RunSummary } from './types.js';
 import { logInfo } from './utils/logging.js';
 
@@ -43,6 +44,7 @@ async function run(): Promise<void> {
     await enrichRecord(record, input);
     if (record.enrichment_context) sourceStats.exa_enriched += 1;
     record.nl_relevance_score = scoreNlRelevance(record);
+    record.issuer_desirability_score = scoreIssuerDesirability(record);
     scoreSignal(record, input.lookbackDays);
     record.match_ready = true;
     applySignalGates(record, input);
