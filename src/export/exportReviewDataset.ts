@@ -26,6 +26,14 @@ export function toReviewRecord(record: NormalizedSignalRecord): ReviewRecord {
     signal_confidence: record.signal_confidence,
     match_ready: record.match_ready,
     notes: record.notes.join(' | '),
+    context_confirmed: record.context_confirmed,
+    disposal_confirmed: record.disposal_confirmed,
+    role_confirmed: record.role_confirmed,
+    confirmation_urls: record.confirmation_urls,
+    confirmation_sources: record.confirmation_sources,
+    confirmation_summary: record.confirmation_summary,
+    confirmation_evidence_strength: record.confirmation_evidence_strength,
+    review_action_updated: record.review_action_updated,
   };
 }
 

@@ -11,6 +11,7 @@ import { defaultInput } from '../../src/config.js';
 import { scoreNlRelevance } from '../../src/scoring/scoreNlRelevance.js';
 import { scoreIssuerDesirability } from '../../src/scoring/scoreIssuerDesirability.js';
 import { exportReviewDataset, rankReviewRecords, topByIssuer } from '../../src/export/exportReviewDataset.js';
+import { confirmContextForTopReviewRecords } from '../../src/enrich/confirmContextForTopReviewRecords.js';
 
 const mar19Fixture = readFileSync(new URL('../fixtures/afm_mar19_sample.csv', import.meta.url), 'utf8');
 const substantialFixture = readFileSync(new URL('../fixtures/afm_substantial_sample.csv', import.meta.url), 'utf8');
@@ -266,6 +267,75 @@ describe('connector os dutch liquidity pipeline', () => {
     const review = await exportReviewDataset([b, a, c], 10);
     expect(review[0].review_bucket).toBe('A');
     expect(review[0].review_priority_score).toBeGreaterThan(review[2].review_priority_score);
+  });
+
+
+  it('keeps Exa confirmation scoped to bucket A and top configurable bucket B records when Exa is unavailable', async () => {
+    const bucketA = normalizeRecord({ personName: 'Jan de Vries', companyName: 'Adyen NV', signalDate: '2026-03-18', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    const bucketB1 = normalizeRecord({ personName: 'Piet van Dam', companyName: 'ASML Holding NV', signalDate: '2026-03-17', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'B1', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    const bucketB2 = normalizeRecord({ personName: 'Klaas Jansen', companyName: 'Prosus NV', signalDate: '2026-03-16', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'B2', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    const bucketC = normalizeRecord({ personName: 'Holding BV', companyName: 'Random Plc', signalDate: '2026-03-15', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'C', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+
+    bucketA.review_bucket = 'A';
+    bucketA.review_action = 'manual_context_check';
+    bucketB1.review_bucket = 'B';
+    bucketB1.review_action = 'manual_context_check';
+    bucketB2.review_bucket = 'B';
+    bucketB2.review_action = 'manual_context_check';
+    bucketC.review_bucket = 'C';
+    bucketC.review_action = 'manual_person_verify';
+
+    await confirmContextForTopReviewRecords([bucketA, bucketB1, bucketB2, bucketC], {
+      ...defaultInput,
+      runExaEnrichment: false,
+      exaTopReviewConfirmations: 1,
+    });
+
+    expect(bucketA.confirmation_summary).toContain('skipped');
+    expect(bucketB1.confirmation_summary).toContain('skipped');
+    expect(bucketB2.confirmation_summary).toBe('');
+    expect(bucketC.confirmation_summary).toBe('');
+  });
+
+  it('uses Exa search and contents as confirmatory context without loosening match-ready gates', async () => {
+    const record = normalizeRecord({ personName: 'Jan de Vries', companyName: 'Adyen NV', signalDate: '2026-03-18', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
+    record.review_bucket = 'A';
+    record.review_action = 'manual_context_check';
+    record.role = 'CFO';
+    record.company_domain = 'adyen.com';
+    record.match_ready = false;
+
+    let fetchCount = 0;
+    const responses = [
+      { ok: true, json: async () => ({ results: [{ url: 'https://adyen.com/about', title: 'Adyen leadership Jan de Vries CFO', summary: 'Board page', highlights: ['Jan de Vries serves as CFO'], score: 0.9 }] }) },
+      { ok: true, json: async () => ({ results: [{ url: 'https://news.example.com/article', title: 'Adyen insider share sale', summary: 'News summary', highlights: ['Jan de Vries sold shares after filing'], score: 0.8 }] }) },
+      { ok: true, json: async () => ({ results: [
+        { url: 'https://adyen.com/about', title: 'Adyen leadership Jan de Vries CFO', summary: 'Board page', highlights: ['Jan de Vries serves as CFO'], text: 'Jan de Vries serves as CFO of Adyen.' },
+        { url: 'https://news.example.com/article', title: 'Adyen insider share sale', summary: 'News summary', highlights: ['Jan de Vries sold shares after filing'], text: 'News coverage says Jan de Vries sold shares.' },
+      ] }) },
+    ];
+
+    const originalFetch = global.fetch;
+    global.fetch = (async () => responses[fetchCount++]) as unknown as typeof fetch;
+    try {
+      await confirmContextForTopReviewRecords([record], {
+        ...defaultInput,
+        runExaEnrichment: true,
+        exaApiKey: 'test-key',
+        exaTopReviewConfirmations: 2,
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+
+    expect(fetchCount).toBe(3);
+    expect(record.context_confirmed).toBe(true);
+    expect(record.role_confirmed).toBe(true);
+    expect(record.disposal_confirmed).toBe(true);
+    expect(record.confirmation_urls).toHaveLength(2);
+    expect(record.confirmation_evidence_strength).toBe('strong');
+    expect(record.review_action_updated).toBe('watchlist_only');
+    expect(record.match_ready).toBe(false);
   });
 
   it('exports top-by-issuer views and keeps review_action aligned with blockers', () => {

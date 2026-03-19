@@ -9,12 +9,13 @@ import { scoreSignal } from './scoring/scoreSignal.js';
 import { applySignalGates } from './filters/signalGates.js';
 import { dedupeSignals } from './dedupe/dedupeSignals.js';
 import { exportRawArchive } from './export/exportRawArchive.js';
-import { exportReviewDataset } from './export/exportReviewDataset.js';
+import { exportReviewDataset, rankReviewRecords } from './export/exportReviewDataset.js';
 import { exportMatchReady } from './export/exportMatchReady.js';
 import { scoreNlRelevance } from './scoring/scoreNlRelevance.js';
 import { scoreIssuerDesirability } from './scoring/scoreIssuerDesirability.js';
 import { ActorInput, NormalizedSignalRecord, RunSummary } from './types.js';
 import { logInfo } from './utils/logging.js';
+import { confirmContextForTopReviewRecords } from './enrich/confirmContextForTopReviewRecords.js';
 
 async function run(): Promise<void> {
   await Actor.init();
@@ -57,6 +58,7 @@ async function run(): Promise<void> {
     : records;
 
   await exportRawArchive(records);
+  await confirmContextForTopReviewRecords(rankReviewRecords(postFilterRecords), input);
   const review = await exportReviewDataset(postFilterRecords, input.maxReviewRecords);
   const matchReady = await exportMatchReady(postFilterRecords, input.maxMatchReadyRecords);
   const review_bucket_stats = {

@@ -1,6 +1,6 @@
 # Connector OS Dutch Liquidity Signals Actor v1
 
-Production-minded Apify actor for monthly Dutch HNWI / liquidity-event signal qualification. This v1 is intentionally narrow: it ingests AFM MAR 19 CSV data, AFM substantial holdings CSV data, and optionally adds lightweight Exa enrichment.
+Production-minded Apify actor for monthly Dutch HNWI / liquidity-event signal qualification. This v1 is intentionally narrow: it ingests AFM MAR 19 CSV data, AFM substantial holdings CSV data, and optionally adds lightweight Exa enrichment plus a tightly scoped Exa confirmation pass for top review records.
 
 ## What this actor does
 
@@ -26,6 +26,9 @@ src/
     afmMar19.ts
     afmSubstantialHoldings.ts
     exaEnrichment.ts
+  enrich/
+    enrichRecord.ts
+    confirmContextForTopReviewRecords.ts
   normalize/
     normalizeRecord.ts
   filters/
@@ -36,8 +39,6 @@ src/
     dedupeSignals.ts
   scoring/
     scoreSignal.ts
-  enrich/
-    enrichRecord.ts
   export/
     exportRawArchive.ts
     exportReviewDataset.ts
@@ -68,6 +69,8 @@ tests/
   "maxReviewRecords": 100,
   "maxMatchReadyRecords": 30,
   "exaApiKey": "",
+  "exaTopReviewConfirmations": 5,
+  "exaFreshnessMaxAgeHours": 72,
   "debug": false
 }
 ```
@@ -98,12 +101,13 @@ In this environment, direct network fetches to AFM CSV downloads were blocked by
 6. Score natural-person confidence.
 7. Enrich with domain heuristics and optional Exa support.
 8. Score Dutch wealth-management relevance (`nl_relevance_score`).
-9. Score issuer desirability (`issuer_desirability_score`) for Dutch boutique wealth-management usefulness.
-10. Score evidence-based `signal_confidence` with wider spread across person quality, NL relevance, issuer relevance, evidence quality, and context quality.
-11. Apply hard gates before anything becomes `match_ready`, while recording explicit `blocked_by` reasons.
-12. Classify non-match-ready records into review buckets `A`, `B`, and `C`, assign `review_action`, and compute a separate `review_priority_score`.
-13. Deduplicate deterministically without collapsing distinct same-person events on different dates.
-14. Export raw, review, and match-ready outputs plus audit ranking views.
+9. Rank review candidates, then run an optional Exa confirmation/context step only for all bucket `A` review rows plus the top configurable `N` from bucket `B`.
+10. Score issuer desirability (`issuer_desirability_score`) for Dutch boutique wealth-management usefulness.
+11. Score evidence-based `signal_confidence` with wider spread across person quality, NL relevance, issuer relevance, evidence quality, and context quality.
+12. Apply hard gates before anything becomes `match_ready`, while recording explicit `blocked_by` reasons.
+13. Classify non-match-ready records into review buckets `A`, `B`, and `C`, assign `review_action`, and compute a separate `review_priority_score`.
+14. Deduplicate deterministically without collapsing distinct same-person events on different dates.
+15. Export raw, review, and match-ready outputs plus audit ranking views.
 
 ## Scoring logic
 
@@ -166,6 +170,31 @@ Every review row also gets a `review_action` value:
 - `discard_low_relevance`
 - `watchlist_only`
 
+### Exa confirmation layer
+
+When `runExaEnrichment` is enabled and an `exaApiKey` is provided, the actor now runs an **auditable confirmation pass** that is deliberately narrow:
+- processes only review bucket `A` plus the top `exaTopReviewConfirmations` records from bucket `B`
+- runs up to two Exa `/search` passes per shortlisted record: issuer-focused and news-focused
+- selects only the best 1 to 3 URLs
+- fetches Exa `/contents` only for those shortlisted URLs
+- writes structured confirmation fields without changing AFM evidence authority
+
+Review outputs now include:
+- `context_confirmed`
+- `disposal_confirmed`
+- `role_confirmed`
+- `confirmation_urls`
+- `confirmation_sources`
+- `confirmation_summary`
+- `confirmation_evidence_strength`
+- `review_action_updated`
+
+Important guardrails:
+- Exa is a context and confirmation layer, not the source of truth
+- AFM evidence remains decisive for gating and signal interpretation
+- `match_ready` gates remain unchanged and strict
+- weak confirmation leaves the row review-only
+
 ## Output design
 
 - **Default dataset**: raw archive of all normalized records after filtering notes and scoring.
@@ -181,6 +210,7 @@ Every review row also gets a `review_action` value:
 - Audit reruns also export:
   - `audit_outputs/top20_review_overall.json`
   - `audit_outputs/top3_review_by_issuer.json`
+  - `audit_outputs/confirmation_enriched_review_subset.json`
   - `audit_outputs/before_after_comparison.json`
 - **Key-value store**:
   - `RUN_SUMMARY`
@@ -230,7 +260,7 @@ Unit tests cover:
 
 ## Stubbed
 
-- Exa enrichment remains lightweight and only uses a simple keyword search request.
+- Exa confirmation is shortlist-only and depends on Exa API availability; without credentials it records an explicit skipped summary on shortlisted rows.
 - Company domain inference is heuristic-first, not verified.
 - Direct AFM download execution can still depend on the runtime network environment.
 

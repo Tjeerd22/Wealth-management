@@ -16,5 +16,7 @@ export const defaultInput: ActorInput = {
   maxReviewRecords: 100,
   maxMatchReadyRecords: 30,
   exaApiKey: '',
+  exaTopReviewConfirmations: 5,
+  exaFreshnessMaxAgeHours: 72,
   debug: false,
 };

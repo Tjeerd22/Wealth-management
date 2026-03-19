@@ -59,5 +59,13 @@ export function normalizeRecord(input: NormalizeInput): NormalizedSignalRecord {
     notes: input.notes ?? [],
     provenance_sources: [input.sourceName],
     provenance_record_ids: [],
+    context_confirmed: false,
+    disposal_confirmed: false,
+    role_confirmed: false,
+    confirmation_urls: [],
+    confirmation_sources: [],
+    confirmation_summary: '',
+    confirmation_evidence_strength: 'none',
+    review_action_updated: 'watchlist_only',
   };
 }

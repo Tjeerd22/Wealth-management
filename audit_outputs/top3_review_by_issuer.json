@@ -23,7 +23,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold. | Exa confirmation skipped because API access was not configured.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "Exa confirmation skipped because API access was not configured.",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "manual_context_check"
   },
   {
     "record_id": "d9c46a9b2502a35d",
@@ -49,7 +57,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold. | Exa confirmation skipped because API access was not configured.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "Exa confirmation skipped because API access was not configured.",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "manual_context_check"
   },
   {
     "record_id": "48f85442c1bcb3f3",
@@ -75,7 +91,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Merged duplicate record 48f85442c1bcb3f3. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Merged duplicate record 48f85442c1bcb3f3. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold. | Exa confirmation skipped because API access was not configured.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "Exa confirmation skipped because API access was not configured.",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "manual_context_check"
   },
   {
     "record_id": "c0766833d1aec38d",
@@ -102,7 +126,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold. | Exa confirmation skipped because API access was not configured.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "Exa confirmation skipped because API access was not configured.",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "manual_person_verify"
   },
   {
     "record_id": "5e8f2975099be7f0",
@@ -129,7 +161,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold. | Exa confirmation skipped because API access was not configured.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "Exa confirmation skipped because API access was not configured.",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "manual_person_verify"
   },
   {
     "record_id": "8f5a5286fa3fa503",
@@ -156,7 +196,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold. | Exa confirmation skipped because API access was not configured.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "Exa confirmation skipped because API access was not configured.",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "manual_context_check"
   },
   {
     "record_id": "ca2ec3303ba7347c",
@@ -182,7 +230,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold. | Exa confirmation skipped because API access was not configured.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "Exa confirmation skipped because API access was not configured.",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "manual_context_check"
   },
   {
     "record_id": "ab05c52567fbcab5",
@@ -209,7 +265,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold. | Exa confirmation skipped because API access was not configured.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "Exa confirmation skipped because API access was not configured.",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "manual_person_verify"
   },
   {
     "record_id": "764c5af853150711",
@@ -236,7 +300,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "d880bc23c1747eda",
@@ -263,7 +335,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "80a4886a08ab6120",
@@ -290,7 +370,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "f8807ff489acc609",
@@ -317,7 +405,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "1f0db4319367343e",
@@ -344,7 +440,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "fde3039b66ba6e6c",
@@ -371,7 +475,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "cab0ca028b92abe7",
@@ -398,7 +510,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "864ffcba425a4557",
@@ -425,7 +545,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "bfa7d7b5555c689e",
@@ -453,7 +581,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "b059a69100359e1c",
@@ -480,7 +616,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "77eabb6b2fe094b4",
@@ -507,7 +651,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "5e31871c3d239f16",
@@ -534,7 +686,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "935238db145a4aa4",
@@ -561,7 +721,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "323dea60c76e1172",
@@ -589,7 +757,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "8c0711da1bdfed9d",
@@ -616,7 +792,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "1e00511964d270b0",
@@ -643,7 +827,15 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Low Netherlands wealth-management relevance for current v1 scope. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   },
   {
     "record_id": "19240b538698d2c9",
@@ -670,6 +862,14 @@
     ],
     "signal_confidence": 0.58,
     "match_ready": false,
-    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold."
+    "notes": "MAR 19 CSV is timing-strong but thin; disposal not confirmed from source export alone. | Inferred company domain from company name heuristic; not treated as verified context. | Failed natural person gate. | Signal confidence capped due to incomplete evidence; review-only. | Failed verified-context gate. | Below minimum signal confidence threshold.",
+    "context_confirmed": false,
+    "disposal_confirmed": false,
+    "role_confirmed": false,
+    "confirmation_urls": [],
+    "confirmation_sources": [],
+    "confirmation_summary": "",
+    "confirmation_evidence_strength": "none",
+    "review_action_updated": "watchlist_only"
   }
 ]
