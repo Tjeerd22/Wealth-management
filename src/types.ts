@@ -16,6 +16,7 @@ export interface ActorInput {
   runAfmMar19: boolean;
   runAfmSubstantialHoldings: boolean;
   runExaEnrichment: boolean;
+  runExaConfirmation?: boolean;
   afmMar19CsvUrl: string;
   afmSubstantialHoldingsCsvUrl: string;
   lookbackDays: number;
@@ -24,6 +25,7 @@ export interface ActorInput {
   excludeInstitutions: boolean;
   maxReviewRecords: number;
   maxMatchReadyRecords: number;
+  topBucketBForExa?: number;
   exaApiKey: string;
   exaTopReviewConfirmations: number;
   exaFreshnessMaxAgeHours: number;

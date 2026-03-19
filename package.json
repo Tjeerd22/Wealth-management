@@ -1,13 +1,13 @@
 {
-  "name": "connector-os-dutch-liquidity-signals",
+  "name": "connector-os-dutch-hnwi-signals",
   "version": "0.1.0",
-  "description": "Production-minded v1 Apify actor for Dutch HNWI liquidity-event signal qualification.",
+  "description": "Apify actor for Dutch HNWI liquidity-event signal qualification.",
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "start": "tsx src/main.ts"
+    "start": "node dist/main.js"
   },
   "dependencies": {
     "apify": "^3.4.0",

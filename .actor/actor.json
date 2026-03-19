@@ -1,0 +1,9 @@
+{
+  "actorSpecification": 1,
+  "name": "connector-os-dutch-hnwi-signals",
+  "title": "Connector OS Dutch HNWI Signals",
+  "version": "0.1",
+  "dockerfile": "./Dockerfile",
+  "readme": "./README.md",
+  "input": "./.actor/input_schema.json"
+}
