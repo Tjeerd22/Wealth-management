@@ -1,0 +1,266 @@
+{
+  "before_summary": {
+    "raw_records": 97,
+    "post_filter_records": 42,
+    "review_records": 30,
+    "match_ready_records": 0,
+    "excluded_institutions": 55,
+    "low_confidence_records": 97,
+    "source_stats": {
+      "afm_mar19": 50,
+      "afm_substantial": 50,
+      "exa_enriched": 0
+    },
+    "review_bucket_stats": {
+      "A": 1,
+      "B": 30,
+      "C": 11
+    },
+    "blocked_by_counts": [
+      [
+        "unconfirmed_disposal",
+        42
+      ],
+      [
+        "missing_verified_context",
+        42
+      ],
+      [
+        "below_min_signal_confidence",
+        42
+      ],
+      [
+        "low_natural_person_confidence",
+        36
+      ],
+      [
+        "low_nl_relevance",
+        16
+      ]
+    ]
+  },
+  "after_summary": {
+    "raw_records": 97,
+    "post_filter_records": 42,
+    "review_records": 20,
+    "match_ready_records": 0,
+    "excluded_institutions": 55,
+    "low_confidence_records": 97,
+    "source_stats": {
+      "afm_mar19": 50,
+      "afm_substantial": 50,
+      "exa_enriched": 0
+    },
+    "review_bucket_stats": {
+      "A": 3,
+      "B": 28,
+      "C": 11
+    },
+    "blocked_by_counts": [
+      [
+        "unconfirmed_disposal",
+        42
+      ],
+      [
+        "missing_verified_context",
+        42
+      ],
+      [
+        "below_min_signal_confidence",
+        42
+      ],
+      [
+        "low_natural_person_confidence",
+        33
+      ],
+      [
+        "low_nl_relevance",
+        16
+      ]
+    ]
+  },
+  "before_top_review_sample": [
+    {
+      "record_id": "d9c46a9b2502a35d",
+      "company_name": "Universal Music Group N.V.",
+      "person_name": "Hu J.l.",
+      "review_bucket": "A",
+      "signal_confidence": 0.58,
+      "nl_relevance_score": 0.63
+    },
+    {
+      "record_id": "eac1f855f6897779",
+      "company_name": "Pharming Group N.V.",
+      "person_name": "Outersterp, Van R.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "nl_relevance_score": 0.87
+    },
+    {
+      "record_id": "5e8f2975099be7f0",
+      "company_name": "CEG N.V.",
+      "person_name": "Bayoglu U.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "nl_relevance_score": 0.83
+    },
+    {
+      "record_id": "c0766833d1aec38d",
+      "company_name": "BE Semiconductor Industries N.V.",
+      "person_name": "Hendriks R.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "nl_relevance_score": 0.83
+    },
+    {
+      "record_id": "d880bc23c1747eda",
+      "company_name": "Pharming Group N.V.",
+      "person_name": "Breidenbach A.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "nl_relevance_score": 0.83
+    },
+    {
+      "record_id": "864ffcba425a4557",
+      "company_name": "Pharming Group N.V.",
+      "person_name": "Relan A.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "nl_relevance_score": 0.83
+    },
+    {
+      "record_id": "6ba0225012f73b8c",
+      "company_name": "Pharming Group N.V.",
+      "person_name": "Sanders M.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "nl_relevance_score": 0.83
+    },
+    {
+      "record_id": "48f85442c1bcb3f3",
+      "company_name": "NEPI Rockcastle N.V.",
+      "person_name": "Veer, Van Der A.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "nl_relevance_score": 0.67
+    },
+    {
+      "record_id": "80a4886a08ab6120",
+      "company_name": "Fugro N.V.",
+      "person_name": "Schallenberg N.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "nl_relevance_score": 0.63
+    },
+    {
+      "record_id": "f8807ff489acc609",
+      "company_name": "RHI Magnesita N.V.",
+      "person_name": "Oremovic S.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "nl_relevance_score": 0.63
+    }
+  ],
+  "after_top_review_sample": [
+    {
+      "record_id": "eac1f855f6897779",
+      "company_name": "Pharming Group N.V.",
+      "person_name": "Outersterp, Van R.",
+      "review_bucket": "A",
+      "signal_confidence": 0.58,
+      "review_priority_score": 0.7424,
+      "issuer_desirability_score": 0.72,
+      "review_action": "manual_context_check"
+    },
+    {
+      "record_id": "d9c46a9b2502a35d",
+      "company_name": "Universal Music Group N.V.",
+      "person_name": "Hu J.l.",
+      "review_bucket": "A",
+      "signal_confidence": 0.58,
+      "review_priority_score": 0.652,
+      "issuer_desirability_score": 0.72,
+      "review_action": "manual_context_check"
+    },
+    {
+      "record_id": "48f85442c1bcb3f3",
+      "company_name": "NEPI Rockcastle N.V.",
+      "person_name": "Veer, Van Der A.",
+      "review_bucket": "A",
+      "signal_confidence": 0.58,
+      "review_priority_score": 0.6304000000000001,
+      "issuer_desirability_score": 0.54,
+      "review_action": "manual_context_check"
+    },
+    {
+      "record_id": "c0766833d1aec38d",
+      "company_name": "BE Semiconductor Industries N.V.",
+      "person_name": "Hendriks R.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_priority_score": 0.6794,
+      "issuer_desirability_score": 0.72,
+      "review_action": "manual_person_verify"
+    },
+    {
+      "record_id": "5e8f2975099be7f0",
+      "company_name": "CEG N.V.",
+      "person_name": "Bayoglu U.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_priority_score": 0.6617999999999999,
+      "issuer_desirability_score": 0.64,
+      "review_action": "manual_person_verify"
+    },
+    {
+      "record_id": "8f5a5286fa3fa503",
+      "company_name": "Coca-Cola Europacific Partners plc",
+      "person_name": "Hollander, Den L.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_priority_score": 0.6348,
+      "issuer_desirability_score": 0.64,
+      "review_action": "manual_context_check"
+    },
+    {
+      "record_id": "ca2ec3303ba7347c",
+      "company_name": "Aegon Ltd.",
+      "person_name": "Klinken, Van J.o.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_priority_score": 0.63,
+      "issuer_desirability_score": 0.72,
+      "review_action": "manual_context_check"
+    },
+    {
+      "record_id": "ab05c52567fbcab5",
+      "company_name": "Shell Plc",
+      "person_name": "Bounds P.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_priority_score": 0.597,
+      "issuer_desirability_score": 0.72,
+      "review_action": "manual_person_verify"
+    },
+    {
+      "record_id": "764c5af853150711",
+      "company_name": "Unilever Plc",
+      "person_name": "Ecclissato R.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_priority_score": 0.597,
+      "issuer_desirability_score": 0.72,
+      "review_action": "manual_person_verify"
+    },
+    {
+      "record_id": "d880bc23c1747eda",
+      "company_name": "Pharming Group N.V.",
+      "person_name": "Breidenbach A.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_priority_score": 0.5894,
+      "issuer_desirability_score": 0.72,
+      "review_action": "manual_person_verify"
+    }
+  ]
+}

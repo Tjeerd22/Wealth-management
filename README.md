@@ -98,18 +98,19 @@ In this environment, direct network fetches to AFM CSV downloads were blocked by
 6. Score natural-person confidence.
 7. Enrich with domain heuristics and optional Exa support.
 8. Score Dutch wealth-management relevance (`nl_relevance_score`).
-9. Score signal confidence with wider spread across person quality, NL relevance, issuer relevance, evidence quality, and context quality.
-10. Apply hard gates before anything becomes `match_ready`, while recording explicit `blocked_by` reasons.
-11. Classify non-match-ready records into review buckets `A`, `B`, and `C`.
-12. Deduplicate deterministically without collapsing distinct same-person events on different dates.
-13. Export raw, review, and match-ready outputs.
+9. Score issuer desirability (`issuer_desirability_score`) for Dutch boutique wealth-management usefulness.
+10. Score evidence-based `signal_confidence` with wider spread across person quality, NL relevance, issuer relevance, evidence quality, and context quality.
+11. Apply hard gates before anything becomes `match_ready`, while recording explicit `blocked_by` reasons.
+12. Classify non-match-ready records into review buckets `A`, `B`, and `C`, assign `review_action`, and compute a separate `review_priority_score`.
+13. Deduplicate deterministically without collapsing distinct same-person events on different dates.
+14. Export raw, review, and match-ready outputs plus audit ranking views.
 
 ## Scoring logic
 
 ### Natural person confidence
 
 Transparent heuristics score from 0 to 1 using these practical bands:
-- `0.70` to `0.85`: clear personal names or human comma-prefix patterns
+- `0.70` to `0.85`: clear personal names or strong human comma-prefix patterns, including Dutch forms like `Surname, Van X.` / `Surname, Van Der X.` / `Surname, Den X.`
 - `0.50` to `0.65`: initial-plus-surname or surname-plus-initial patterns without entity signals
 - `0.25` to `0.45`: ambiguous tokenization or single-token names
 - `0.00` to `0.15`: clear institutions, legal entities, or trading-style names
@@ -122,9 +123,18 @@ Transparent heuristics score from 0 to 1 using these practical bands:
 - plausible Dutch executive or tax relevance
 - issuer patterns more likely to matter for Dutch boutique wealth-management workflows
 
+### Issuer desirability
+
+`issuer_desirability_score` is a transparent 0 to 1 commercial-usefulness score for Dutch boutique wealth-management review. It rewards:
+- Dutch or Dutch-listed issuers
+- recognizably relevant public issuers for private-bank / wealth-advisory workflows
+- executive-role context and known issuer domains
+
+It does **not** affect evidence gating and does **not** increase `match_ready`. It only feeds analyst prioritization.
+
 ### Signal confidence
 
-Weighted components now emphasize score spread across:
+`signal_confidence` remains the evidence-based score. Weighted components emphasize score spread across:
 - source quality
 - evidence strength
 - recency
@@ -136,18 +146,42 @@ Weighted components now emphasize score spread across:
 
 Important caps:
 - MAR 19 records stay capped because the export does not confirm disposal.
+- MAR 19 unconfirmed records remain capped below the default `match_ready` threshold.
 - Obvious institutional substantial holdings records are capped low.
 - Weak / unclear signals remain review-only.
+
+### Review prioritization
+
+`review_priority_score` is separate from `signal_confidence`. It ranks analyst-review value using:
+- `natural_person_confidence`
+- `nl_relevance_score`
+- `issuer_desirability_score`
+- recency
+- context availability
+- issuer clustering penalty so one issuer does not dominate the shortlist
+
+Every review row also gets a `review_action` value:
+- `manual_context_check`
+- `manual_person_verify`
+- `discard_low_relevance`
+- `watchlist_only`
 
 ## Output design
 
 - **Default dataset**: raw archive of all normalized records after filtering notes and scoring.
-- **Named dataset `review`**: analyst review dataset capped by `maxReviewRecords`, sorted by `review_bucket` first and then confidence.
+- **Named dataset `review`**: analyst review dataset capped by `maxReviewRecords`, sorted by `review_bucket` first and then `review_priority_score`.
 - **Named dataset `match-ready`**: only records that pass all gates, capped by `maxMatchReadyRecords`.
 - Every reviewable record now includes:
   - `nl_relevance_score`
+  - `issuer_desirability_score`
+  - `review_priority_score`
+  - `review_action`
   - `blocked_by` as an explicit structured array
   - `review_bucket` with values `A`, `B`, or `C`
+- Audit reruns also export:
+  - `audit_outputs/top20_review_overall.json`
+  - `audit_outputs/top3_review_by_issuer.json`
+  - `audit_outputs/before_after_comparison.json`
 - **Key-value store**:
   - `RUN_SUMMARY`
   - `INPUT_SCHEMA`
@@ -175,7 +209,10 @@ Unit tests cover:
 7. ambiguous case that must remain review-only with explicit blockers
 8. record that passes all gates into match-ready
 9. score-spread behavior and blocker transparency for MAR 19
-10. review export ordering by bucket and then confidence
+10. review export ordering by bucket and review priority
+11. Dutch comma-prefix human-name handling
+12. issuer clustering and top-by-issuer review views
+13. review action assignment and issuer desirability scoring
 
 ## Fully implemented
 
@@ -231,7 +268,7 @@ Unit tests cover:
 
 ### Observed output volumes
 
-Observed on the 19 March 2026 current audit snapshot after the iteration-2 ranking and review updates in this repository:
+Observed on the 19 March 2026 current audit snapshot after the analyst-review prioritization update in this repository:
 
 - Raw source rows: 100 total
   - AFM MAR 19: 50
@@ -239,12 +276,13 @@ Observed on the 19 March 2026 current audit snapshot after the iteration-2 ranki
 - Raw records after dedupe: 97
 - Post-filter records: 42
 - Excluded institutions: 55
-- Review records exported: 30
+- Review records exported: 20 in `top20_review_overall.json`
 - Match-ready records exported: 0
 - Review bucket distribution after post-filtering:
-  - `A`: 1
-  - `B`: 30
+  - `A`: 3
+  - `B`: 28
   - `C`: 11
+- Additional issuer-balanced audit view: top 3 records per issuer in `top3_review_by_issuer.json`
 
 The zero `match-ready` outcome remains intentional for this validation slice: the current evidence is commercially safer as review-only than as outreach-ready.
 
@@ -299,14 +337,16 @@ Before any outreach, require all of the following:
 
 ### Before / after audit comparison
 
-- Before this iteration, the top review rows clustered around `natural_person_confidence = 0.20` and `signal_confidence = 0.56`, which made obviously human MAR 19 names look too weak.
-- After this iteration, surname-plus-initial and initial-plus-surname MAR 19 names land in the moderate human-evidence band instead of near-failure, while `blocked_by` makes the remaining review-only reasons explicit.
-- Ranking now spreads review records by bucket and Dutch relevance rather than treating most thin MAR 19 rows as effectively tied.
+- Before this iteration, the review shortlist was capped at 30 rows, only one row landed in bucket `A`, and the top sample was still dominated by repeated issuer clusters.
+- After this iteration, Dutch comma-prefix names such as `Outersterp, Van R.` and `Veer, Van Der A.` are treated as strong human patterns, which lifted bucket `A` from `1` to `3` without changing `match_ready` from `0`.
+- Ranking now uses `review_priority_score`, `issuer_desirability_score`, and explicit `review_action` values, while the issuer cluster penalty and separate `top3_review_by_issuer` view stop a single issuer from flooding analyst review.
 - `match_ready` remains at `0`, so the actor did not inflate outreach eligibility to manufacture better-looking output.
 
 ### Audit exports
 
 - Run summary: `audit_outputs/run_summary.json`
-- Top 30 review records: `audit_outputs/top30_review.json`
+- Top 20 overall review records: `audit_outputs/top20_review_overall.json`
+- Top 3 review records per issuer: `audit_outputs/top3_review_by_issuer.json`
+- Before/after comparison: `audit_outputs/before_after_comparison.json`
 - Top 30 match-ready records: `audit_outputs/top30_match_ready.json`
 - Local rerun helper used for the repository audit snapshot: `scripts_rerun_audit.ts`

@@ -11,6 +11,8 @@ function mergeRecords(base: NormalizedSignalRecord, candidate: NormalizedSignalR
   base.natural_person_confidence = Math.max(base.natural_person_confidence, candidate.natural_person_confidence);
   base.signal_confidence = Math.max(base.signal_confidence, candidate.signal_confidence);
   base.nl_relevance_score = Math.max(base.nl_relevance_score, candidate.nl_relevance_score);
+  base.issuer_desirability_score = Math.max(base.issuer_desirability_score, candidate.issuer_desirability_score);
+  base.review_priority_score = Math.max(base.review_priority_score, candidate.review_priority_score);
   base.role ||= candidate.role;
   base.company_domain ||= candidate.company_domain;
   return base;
