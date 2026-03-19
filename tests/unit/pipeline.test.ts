@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { parseCsv } from '../../src/utils/csv.js';
+import { fetchCsvRows, parseCsv } from '../../src/utils/csv.js';
+import { ingestAfmMar19 } from '../../src/sources/afmMar19.js';
+import { ingestAfmSubstantialHoldings } from '../../src/sources/afmSubstantialHoldings.js';
 import { normalizeRecord } from '../../src/normalize/normalizeRecord.js';
 import { applyInstitutionalFilter } from '../../src/filters/institutionalFilter.js';
 import { scoreNaturalPersonConfidence } from '../../src/filters/personConfidence.js';
@@ -15,8 +17,41 @@ import { confirmContextForTopReviewRecords } from '../../src/enrich/confirmConte
 
 const mar19Fixture = readFileSync(new URL('../fixtures/afm_mar19_sample.csv', import.meta.url), 'utf8');
 const substantialFixture = readFileSync(new URL('../fixtures/afm_substantial_sample.csv', import.meta.url), 'utf8');
+const mar19SemicolonFixtureUrl = new URL('../fixtures/afm_mar19_semicolon_sample.csv', import.meta.url);
+const mar19SemicolonFixture = readFileSync(mar19SemicolonFixtureUrl, 'utf8');
+const substantialSemicolonFixtureUrl = new URL('../fixtures/afm_substantial_semicolon_sample.csv', import.meta.url);
+const substantialSemicolonFixture = readFileSync(substantialSemicolonFixtureUrl, 'utf8');
 
 describe('connector os dutch liquidity pipeline', () => {
+
+  it('parses AFM-style semicolon CSV with BOM, whitespace, quotes, and empty lines', () => {
+    const rows = parseCsv(mar19SemicolonFixture, { sourceName: 'AFM MAR 19 fixture' });
+    expect(rows).toHaveLength(3);
+    expect(rows[0].TransactionDate).toBe('2026-03-19');
+    expect(rows[0].IssuingInstitution).toBe('Universal Music Group N.V.');
+    expect(rows[0].Notifiable).toBe('Jansen, Eva');
+  });
+
+  it('falls back to comma-delimited parsing when semicolon parsing is not valid', () => {
+    const rows = parseCsv(mar19Fixture, { sourceName: 'AFM MAR 19 comma fixture' });
+    expect(rows).toHaveLength(2);
+    expect(rows[0].IssuingInstitution).toBe('Adyen NV');
+  });
+
+  it('uses the same robust CSV utility for AFM MAR 19 and substantial holdings ingestion', async () => {
+    const mar19Rows = await fetchCsvRows(mar19SemicolonFixtureUrl.pathname, { sourceName: 'AFM MAR 19 fixture' });
+    const substantialRows = await fetchCsvRows(substantialSemicolonFixtureUrl.pathname, { sourceName: 'AFM substantial holdings fixture' });
+    const mar19Records = await ingestAfmMar19(mar19SemicolonFixtureUrl.pathname);
+    const substantialRecords = await ingestAfmSubstantialHoldings(substantialSemicolonFixtureUrl.pathname);
+
+    expect(mar19Rows).toHaveLength(3);
+    expect(substantialRows).toHaveLength(3);
+    expect(mar19Records).toHaveLength(3);
+    expect(substantialRecords).toHaveLength(3);
+    expect(substantialRecords[1].capital_interest_before).toBe(6.2);
+    expect(substantialRecords[1].capital_interest_after).toBe(4.8);
+  });
+
   it('flags a clear institution record from substantial holdings', () => {
     const [row] = parseCsv(substantialFixture);
     const record = normalizeRecord({

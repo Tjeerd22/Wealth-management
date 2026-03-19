@@ -11,7 +11,7 @@ function toNumber(value: string | undefined): number | null {
 }
 
 export async function ingestAfmSubstantialHoldings(url = DEFAULT_AFM_SUBSTANTIAL_HOLDINGS_CSV_URL): Promise<NormalizedSignalRecord[]> {
-  const rows = await fetchCsvRows(url);
+  const rows = await fetchCsvRows(url, { sourceName: 'AFM substantial holdings' });
   return rows.map((row) => {
     const personName = row.NotifyingParty || row.notifying_party || row.Name || row.name || 'Unknown';
     const companyName = row.Issuer || row.issuer || row.Company || row.company || 'Unknown issuer';
