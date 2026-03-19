@@ -4,7 +4,7 @@ import { NormalizedSignalRecord } from '../types.js';
 import { fetchCsvRows } from '../utils/csv.js';
 
 export async function ingestAfmMar19(url = DEFAULT_AFM_MAR19_CSV_URL): Promise<NormalizedSignalRecord[]> {
-  const rows = await fetchCsvRows(url);
+  const rows = await fetchCsvRows(url, { sourceName: 'AFM MAR 19' });
   return rows.map((row) => {
     const personName = row.Notifiable || row.notifiable || row.Name || row.name || row.LastName || row.last_name || 'Unknown';
     const companyName = row.IssuingInstitution || row.issuer || row.Company || row.company || 'Unknown issuer';
