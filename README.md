@@ -22,6 +22,8 @@ tests/
 
 The actor ingests AFM MAR 19 and AFM substantial holdings CSV feeds, applies the existing normalization, filtering, scoring, deduplication, and export pipeline, and writes Apify-friendly outputs:
 
+AFM exports may arrive as semicolon-delimited CSV with a UTF-8 BOM, so the shared ingestion layer now explicitly tries semicolon parsing first, falls back to comma parsing when needed, and logs the selected delimiter plus parsed row counts.
+
 - **Default dataset**: raw archive of processed records.
 - **Named dataset `review`**: analyst review export.
 - **Named dataset `match-ready`**: strict match-ready export.
