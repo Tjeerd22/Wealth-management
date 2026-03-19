@@ -97,31 +97,42 @@ In this environment, direct network fetches to AFM CSV downloads were blocked by
 5. Apply explainable institutional filtering.
 6. Score natural-person confidence.
 7. Enrich with domain heuristics and optional Exa support.
-8. Score signal confidence.
-9. Apply hard gates before anything becomes `match_ready`.
-10. Deduplicate deterministically.
-11. Export raw, review, and match-ready outputs.
+8. Score Dutch wealth-management relevance (`nl_relevance_score`).
+9. Score signal confidence with wider spread across person quality, NL relevance, issuer relevance, evidence quality, and context quality.
+10. Apply hard gates before anything becomes `match_ready`, while recording explicit `blocked_by` reasons.
+11. Classify non-match-ready records into review buckets `A`, `B`, and `C`.
+12. Deduplicate deterministically without collapsing distinct same-person events on different dates.
+13. Export raw, review, and match-ready outputs.
 
 ## Scoring logic
 
 ### Natural person confidence
 
-Transparent heuristics score from 0 to 1 using:
-- plausible full-name structure
-- initials plus surname handling
-- entity-like terms and legal suffix penalties
-- institutional-risk penalties
-- role-based and enrichment-based boosts
+Transparent heuristics score from 0 to 1 using these practical bands:
+- `0.70` to `0.85`: clear personal names or human comma-prefix patterns
+- `0.50` to `0.65`: initial-plus-surname or surname-plus-initial patterns without entity signals
+- `0.25` to `0.45`: ambiguous tokenization or single-token names
+- `0.00` to `0.15`: clear institutions, legal entities, or trading-style names
+
+### Netherlands relevance
+
+`nl_relevance_score` is a transparent ranking feature from 0 to 1. It is **not** a hard filter. It increases when the record shows:
+- Dutch issuer or strong Netherlands nexus
+- Euronext Amsterdam / Dutch-listed relevance
+- plausible Dutch executive or tax relevance
+- issuer patterns more likely to matter for Dutch boutique wealth-management workflows
 
 ### Signal confidence
 
-Weighted components:
+Weighted components now emphasize score spread across:
 - source quality
 - evidence strength
 - recency
 - natural person confidence
+- `nl_relevance_score`
 - signal type strength
-- enrichment quality
+- issuer relevance
+- context quality
 
 Important caps:
 - MAR 19 records stay capped because the export does not confirm disposal.
@@ -131,8 +142,12 @@ Important caps:
 ## Output design
 
 - **Default dataset**: raw archive of all normalized records after filtering notes and scoring.
-- **Named dataset `review`**: analyst review dataset capped by `maxReviewRecords`.
+- **Named dataset `review`**: analyst review dataset capped by `maxReviewRecords`, sorted by `review_bucket` first and then confidence.
 - **Named dataset `match-ready`**: only records that pass all gates, capped by `maxMatchReadyRecords`.
+- Every reviewable record now includes:
+  - `nl_relevance_score`
+  - `blocked_by` as an explicit structured array
+  - `review_bucket` with values `A`, `B`, or `C`
 - **Key-value store**:
   - `RUN_SUMMARY`
   - `INPUT_SCHEMA`
@@ -152,13 +167,15 @@ To run on Apify, configure actor input and provide an `exaApiKey` only if Exa en
 
 Unit tests cover:
 1. clear institution record from substantial holdings
-2. likely natural person from MAR 19
-3. initials plus surname case
+2. likely natural person from MAR 19 in the stronger human-name band
+3. initials plus surname case scored as moderate confidence
 4. Dutch surname prefix case
-5. duplicate merge case
-6. ambiguous case that must remain review-only
-7. record that passes all gates into match-ready
-8. record capped due to insufficient evidence
+5. duplicate merge case for same-day name variants
+6. exact-duplicate removal without collapsing distinct dated events
+7. ambiguous case that must remain review-only with explicit blockers
+8. record that passes all gates into match-ready
+9. score-spread behavior and blocker transparency for MAR 19
+10. review export ordering by bucket and then confidence
 
 ## Fully implemented
 
@@ -167,8 +184,9 @@ Unit tests cover:
 - Shared normalization schema.
 - Explainable institutional filtering and natural-person scoring.
 - Transparent rule-based signal scoring and gating.
-- Deterministic-first dedupe.
+- Deterministic-first dedupe with provenance preservation.
 - Raw, review, and match-ready exports.
+- Structured blocker tracking and review bucketing.
 - Optional Exa enrichment support.
 - Unit tests and realistic CSV fixtures.
 - Audit snapshot exports in `audit_outputs/`.
@@ -213,18 +231,22 @@ Unit tests cover:
 
 ### Observed output volumes
 
-Observed on the 19 March 2026 current audit snapshot after the stricter filters in this repository:
+Observed on the 19 March 2026 current audit snapshot after the iteration-2 ranking and review updates in this repository:
 
 - Raw source rows: 100 total
   - AFM MAR 19: 50
   - AFM substantial holdings: 50
-- Raw records after dedupe: 76
-- Post-filter records: 34
-- Excluded institutions: 42
+- Raw records after dedupe: 97
+- Post-filter records: 42
+- Excluded institutions: 55
 - Review records exported: 30
 - Match-ready records exported: 0
+- Review bucket distribution after post-filtering:
+  - `A`: 1
+  - `B`: 30
+  - `C`: 11
 
-The zero `match-ready` outcome is intentional for this validation slice: the current evidence is commercially safer as review-only than as outreach-ready.
+The zero `match-ready` outcome remains intentional for this validation slice: the current evidence is commercially safer as review-only than as outreach-ready.
 
 ### False-positive categories found during audit
 
@@ -244,7 +266,7 @@ The audit found these recurring false-positive categories and tightened v1 accor
 
 4. **Initial-only or initial-heavy names that look like real people but remain too thin**
    - Examples: `Bayoglu U.`, `Bounds P.`, `Kobel T.`
-   - Action: they remain review-only unless stronger verified context exists.
+   - Action: they are now scored as moderate human evidence instead of near-failures, but they still remain review-only unless stronger verified context exists.
 
 5. **Over-optimistic domain/context use**
    - Previous behavior treated a heuristically inferred company domain as enough context.
@@ -275,8 +297,16 @@ Before any outreach, require all of the following:
 6. Reject records containing legal suffixes, fund/bank terms, `trading as`, or entity-style punctuation unless manually cleared.
 7. Treat family holding structures as analyst-review-only until beneficial ownership is explicit.
 
+### Before / after audit comparison
+
+- Before this iteration, the top review rows clustered around `natural_person_confidence = 0.20` and `signal_confidence = 0.56`, which made obviously human MAR 19 names look too weak.
+- After this iteration, surname-plus-initial and initial-plus-surname MAR 19 names land in the moderate human-evidence band instead of near-failure, while `blocked_by` makes the remaining review-only reasons explicit.
+- Ranking now spreads review records by bucket and Dutch relevance rather than treating most thin MAR 19 rows as effectively tied.
+- `match_ready` remains at `0`, so the actor did not inflate outreach eligibility to manufacture better-looking output.
+
 ### Audit exports
 
 - Run summary: `audit_outputs/run_summary.json`
 - Top 30 review records: `audit_outputs/top30_review.json`
 - Top 30 match-ready records: `audit_outputs/top30_match_ready.json`
+- Local rerun helper used for the repository audit snapshot: `scripts_rerun_audit.ts`

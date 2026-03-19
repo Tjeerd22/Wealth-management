@@ -1,5 +1,14 @@
 export type PersonType = 'unknown' | 'natural_person' | 'legal_entity' | 'family_holding';
 export type InstitutionalRisk = 'low' | 'medium' | 'high' | 'unknown';
+export type ReviewBucket = 'A' | 'B' | 'C';
+export type BlockedReason =
+  | 'missing_verified_context'
+  | 'unconfirmed_disposal'
+  | 'low_nl_relevance'
+  | 'low_natural_person_confidence'
+  | 'institutional_risk'
+  | 'below_min_signal_confidence'
+  | 'strict_substantial_holder_gate';
 
 export interface ActorInput {
   runAfmMar19: boolean;
@@ -23,6 +32,12 @@ export interface SourceStats {
   exa_enriched: number;
 }
 
+export interface ReviewBucketStats {
+  A: number;
+  B: number;
+  C: number;
+}
+
 export interface RunSummary {
   raw_records: number;
   post_filter_records: number;
@@ -31,6 +46,7 @@ export interface RunSummary {
   excluded_institutions: number;
   low_confidence_records: number;
   source_stats: SourceStats;
+  review_bucket_stats: ReviewBucketStats;
 }
 
 export interface NormalizedSignalRecord {
@@ -55,13 +71,17 @@ export interface NormalizedSignalRecord {
   evidence_type: string;
   evidence_strength: number;
   natural_person_confidence: number;
+  nl_relevance_score: number;
   institutional_risk: InstitutionalRisk;
   contactability_confidence: number;
   signal_confidence: number;
+  review_bucket: ReviewBucket;
+  blocked_by: BlockedReason[];
   match_ready: boolean;
   raw_source_payload_summary: string;
   notes: string[];
   provenance_sources?: string[];
+  provenance_record_ids?: string[];
   enrichment_context?: string;
 }
 
@@ -76,7 +96,10 @@ export interface ReviewRecord {
   source_name: string;
   source_url: string;
   natural_person_confidence: number;
+  nl_relevance_score: number;
   institutional_risk: InstitutionalRisk;
+  review_bucket: ReviewBucket;
+  blocked_by: BlockedReason[];
   signal_confidence: number;
   match_ready: boolean;
   notes: string;
