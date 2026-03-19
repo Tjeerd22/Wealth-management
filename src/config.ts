@@ -1,7 +1,7 @@
 import { ActorInput } from './types.js';
 
-export const DEFAULT_AFM_MAR19_CSV_URL = 'https://www.afm.nl/~/profmedia/files/registers/mar19-transactions.csv';
-export const DEFAULT_AFM_SUBSTANTIAL_HOLDINGS_CSV_URL = 'https://www.afm.nl/~/profmedia/files/registers/substantial-holdings.csv';
+export const DEFAULT_AFM_MAR19_CSV_URL = 'https://www.afm.nl/export.aspx?format=csv&type=0ee836dc-5520-459d-bcf4-a4a689de6614';
+export const DEFAULT_AFM_SUBSTANTIAL_HOLDINGS_CSV_URL = 'https://www.afm.nl/export.aspx?format=csv&type=1331d46f-3fb6-4a36-b903-9584972675af';
 
 export const defaultInput: ActorInput = {
   runAfmMar19: true,

@@ -137,10 +137,11 @@ describe('connector os dutch liquidity pipeline', () => {
       capitalInterestAfter: 4.8,
     });
     applyInstitutionalFilter(record);
-    record.natural_person_confidence = scoreNaturalPersonConfidence(record);
     record.role = 'Executive Director';
     record.company_domain = 'cm.com';
     record.enrichment_context = 'Board biography found';
+    record.person_type = 'natural_person';
+    record.natural_person_confidence = scoreNaturalPersonConfidence(record);
     scoreSignal(record, 45);
     record.match_ready = true;
     applySignalGates(record, defaultInput);

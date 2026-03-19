@@ -9,7 +9,7 @@ function inferCompanyDomain(companyName: string): string {
 export async function enrichRecord(record: NormalizedSignalRecord, input: ActorInput): Promise<NormalizedSignalRecord> {
   if (!record.company_domain) {
     record.company_domain = inferCompanyDomain(record.company_name);
-    if (record.company_domain) record.notes.push('Inferred company domain from company name heuristic.');
+    if (record.company_domain) record.notes.push('Inferred company domain from company name heuristic; not treated as verified context.');
   }
 
   let exa: ExaEnrichmentResult | null = null;
