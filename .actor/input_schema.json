@@ -77,8 +77,7 @@
       "type": "string",
       "description": "Optional Exa API key.",
       "editor": "textfield",
-      "isSecret": true,
-      "default": ""
+      "isSecret": true
     },
     "debug": {
       "title": "Debug",
