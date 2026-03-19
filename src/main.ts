@@ -11,6 +11,7 @@ import { dedupeSignals } from './dedupe/dedupeSignals.js';
 import { exportRawArchive } from './export/exportRawArchive.js';
 import { exportReviewDataset } from './export/exportReviewDataset.js';
 import { exportMatchReady } from './export/exportMatchReady.js';
+import { scoreNlRelevance } from './scoring/scoreNlRelevance.js';
 import { ActorInput, NormalizedSignalRecord, RunSummary } from './types.js';
 import { logInfo } from './utils/logging.js';
 
@@ -41,6 +42,7 @@ async function run(): Promise<void> {
     record.natural_person_confidence = scoreNaturalPersonConfidence(record);
     await enrichRecord(record, input);
     if (record.enrichment_context) sourceStats.exa_enriched += 1;
+    record.nl_relevance_score = scoreNlRelevance(record);
     scoreSignal(record, input.lookbackDays);
     record.match_ready = true;
     applySignalGates(record, input);
@@ -55,6 +57,11 @@ async function run(): Promise<void> {
   await exportRawArchive(records);
   const review = await exportReviewDataset(postFilterRecords, input.maxReviewRecords);
   const matchReady = await exportMatchReady(postFilterRecords, input.maxMatchReadyRecords);
+  const review_bucket_stats = {
+    A: postFilterRecords.filter((record) => record.review_bucket === 'A').length,
+    B: postFilterRecords.filter((record) => record.review_bucket === 'B').length,
+    C: postFilterRecords.filter((record) => record.review_bucket === 'C').length,
+  };
 
   const summary: RunSummary = {
     raw_records: records.length,
@@ -64,6 +71,7 @@ async function run(): Promise<void> {
     excluded_institutions: excludedInstitutions,
     low_confidence_records: lowConfidenceRecords,
     source_stats: sourceStats,
+    review_bucket_stats,
   };
 
   logInfo('Run summary', summary);

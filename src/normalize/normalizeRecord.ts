@@ -44,13 +44,17 @@ export function normalizeRecord(input: NormalizeInput): NormalizedSignalRecord {
     source_url: input.sourceUrl,
     evidence_type: input.evidenceType,
     evidence_strength: input.evidenceStrength,
-    natural_person_confidence: firstName ? 0.4 : 0.2,
+    natural_person_confidence: firstName ? 0.45 : 0.3,
+    nl_relevance_score: 0.5,
     institutional_risk: 'unknown',
     contactability_confidence: 0.1,
     signal_confidence: 0,
+    review_bucket: 'C',
+    blocked_by: [],
     match_ready: false,
     raw_source_payload_summary: input.rawSummary,
     notes: input.notes ?? [],
     provenance_sources: [input.sourceName],
+    provenance_record_ids: [],
   };
 }
