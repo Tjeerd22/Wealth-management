@@ -14,6 +14,7 @@ import { scoreNlRelevance } from '../../src/scoring/scoreNlRelevance.js';
 import { scoreIssuerDesirability } from '../../src/scoring/scoreIssuerDesirability.js';
 import { exportReviewDataset, rankReviewRecords, topByIssuer } from '../../src/export/exportReviewDataset.js';
 import { confirmContextForTopReviewRecords } from '../../src/enrich/confirmContextForTopReviewRecords.js';
+import { appendRecords } from '../../src/main.js';
 
 const mar19Fixture = readFileSync(new URL('../fixtures/afm_mar19_sample.csv', import.meta.url), 'utf8');
 const substantialFixture = readFileSync(new URL('../fixtures/afm_substantial_sample.csv', import.meta.url), 'utf8');
@@ -160,6 +161,46 @@ describe('connector os dutch liquidity pipeline', () => {
     const b = normalizeRecord({ personName: 'Jan van Dijk', companyName: 'ASML Holding NV', signalDate: '2026-03-03', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'B', sourceName: 'afm_mar19', sourceUrl: 'b', evidenceType: 'afm_csv_filing', evidenceStrength: 0.7, rawSummary: 'b' });
     const deduped = dedupeSignals([a, b]);
     expect(deduped).toHaveLength(2);
+  });
+
+  it('merges a large AFM-sized source array without stack overflow', () => {
+    const seed = normalizeRecord({
+      personName: 'Jan de Vries',
+      companyName: 'Adyen NV',
+      signalDate: '2026-03-01',
+      signalType: 'pdmr_transaction_unconfirmed',
+      signalDetail: 'Large merge regression',
+      sourceName: 'afm_mar19',
+      sourceUrl: 'fixture',
+      evidenceType: 'afm_csv_filing',
+      evidenceStrength: 0.66,
+      rawSummary: 'fixture',
+    });
+    const sourceRecords = Array.from({ length: 254814 }, (_, index) => ({
+      ...seed,
+      record_id: `large-${index}`,
+      source_url: `fixture-${index}`,
+      provenance_record_ids: [`large-${index}`],
+      notes: [],
+      blocked_by: [],
+      confirmation_urls: [],
+      confirmation_sources: [],
+    }));
+    const targetRecords = Array.from({ length: 8782 }, (_, index) => ({
+      ...seed,
+      record_id: `seed-${index}`,
+      source_url: `seed-${index}`,
+      provenance_record_ids: [`seed-${index}`],
+      notes: [],
+      blocked_by: [],
+      confirmation_urls: [],
+      confirmation_sources: [],
+    }));
+
+    expect(() => appendRecords(targetRecords, sourceRecords)).not.toThrow();
+    expect(targetRecords).toHaveLength(8782 + 254814);
+    expect(targetRecords[8782].record_id).toBe('large-0');
+    expect(targetRecords.at(-1)?.record_id).toBe('large-254813');
   });
 
   it('removes exact duplicate rows without dropping distinct dated events', () => {

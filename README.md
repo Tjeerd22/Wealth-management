@@ -24,6 +24,8 @@ The actor ingests AFM MAR 19 and AFM substantial holdings CSV feeds, applies the
 
 AFM exports may arrive as semicolon-delimited CSV with a UTF-8 BOM, so the shared ingestion layer now explicitly tries semicolon parsing first, falls back to comma parsing when needed, and logs the selected delimiter plus parsed row counts.
 
+The AFM-only runtime is also hardened for large real-world AFM exports: source-record merging now uses iterative appends instead of spread-based bulk pushes, which prevents stack overflows when substantial holdings files reach 250k+ rows.
+
 - **Default dataset**: raw archive of processed records.
 - **Named dataset `review`**: analyst review export.
 - **Named dataset `match-ready`**: strict match-ready export.
@@ -138,9 +140,14 @@ Look for these runtime markers in order:
 - `AFM MAR 19 rows loaded`
 - `AFM substantial holdings fetch starting`
 - `AFM substantial rows loaded`
+- `starting merge of source records`
+- `merge completed`
 - `normalization started`
+- `normalization completed`
 - `dedupe started`
+- `dedupe completed`
 - `scoring started`
+- `scoring completed`
 - `exports started`
 - `outputs written`
 - `actor exiting successfully`
