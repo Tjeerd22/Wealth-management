@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { defaultInput } from './src/config.ts';
 import { ingestAfmMar19 } from './src/sources/afmMar19.ts';
 import { ingestAfmSubstantialHoldings } from './src/sources/afmSubstantialHoldings.ts';
@@ -7,6 +7,7 @@ import { dedupeSignals } from './src/dedupe/dedupeSignals.ts';
 import { applyInstitutionalFilter } from './src/filters/institutionalFilter.ts';
 import { scoreNaturalPersonConfidence } from './src/filters/personConfidence.ts';
 import { enrichRecord } from './src/enrich/enrichRecord.ts';
+import { confirmContextForTopReviewRecords } from './src/enrich/confirmContextForTopReviewRecords.ts';
 import { scoreNlRelevance } from './src/scoring/scoreNlRelevance.ts';
 import { scoreIssuerDesirability } from './src/scoring/scoreIssuerDesirability.ts';
 import { scoreSignal } from './src/scoring/scoreSignal.ts';
@@ -14,6 +15,19 @@ import { applySignalGates } from './src/filters/signalGates.ts';
 import { rankReviewRecords, toReviewRecord, topByIssuer } from './src/export/exportReviewDataset.ts';
 import { toMatchReadyRecord } from './src/export/exportMatchReady.ts';
 import type { ActorInput, NormalizedSignalRecord } from './src/types.ts';
+
+
+function readPreviousJson<T>(preferredPath: string, fallbackPath?: string): T {
+  const candidates = [preferredPath, fallbackPath].filter((value): value is string => Boolean(value));
+  for (const path of candidates) {
+    try {
+      return JSON.parse(execSync(`git show HEAD^:${path} 2>/dev/null`, { encoding: 'utf8', shell: '/bin/bash' }));
+    } catch {
+      if (existsSync(path)) return JSON.parse(execSync(`cat ${path}`, { encoding: 'utf8' }));
+    }
+  }
+  return [] as T;
+}
 
 const input: ActorInput = {
   ...defaultInput,
@@ -26,19 +40,19 @@ const input: ActorInput = {
 
 async function main() {
   mkdirSync('audit_outputs', { recursive: true });
-  const beforeTop30Review = JSON.parse(execSync('git show HEAD^:audit_outputs/top30_review.json', { encoding: 'utf8' }));
-  const beforeSummary = JSON.parse(execSync('git show HEAD^:audit_outputs/run_summary.json', { encoding: 'utf8' }));
+  const beforeTopReview = readPreviousJson<Record<string, unknown>[]>('audit_outputs/top20_review_overall.json', 'audit_outputs/top30_review.json');
+  const beforeSummary = readPreviousJson<Record<string, unknown>>('audit_outputs/run_summary.json');
 
   const sourceStats = { afm_mar19: 0, afm_substantial: 0, exa_enriched: 0 };
-  let records: NormalizedSignalRecord[] = [];
   const mar19 = await ingestAfmMar19(input.afmMar19CsvUrl);
   const substantial = await ingestAfmSubstantialHoldings(input.afmSubstantialHoldingsCsvUrl);
   sourceStats.afm_mar19 = mar19.length;
   sourceStats.afm_substantial = substantial.length;
-  records = dedupeSignals([...mar19, ...substantial]);
 
+  let records: NormalizedSignalRecord[] = dedupeSignals([...mar19, ...substantial]);
   let excludedInstitutions = 0;
   let lowConfidenceRecords = 0;
+
   for (const record of records) {
     applyInstitutionalFilter(record);
     record.natural_person_confidence = scoreNaturalPersonConfidence(record);
@@ -53,30 +67,37 @@ async function main() {
     if (record.signal_confidence < input.minSignalConfidence) lowConfidenceRecords += 1;
   }
 
-  const postFilterRecords = input.excludeInstitutions ? records.filter((r) => r.institutional_risk !== 'high') : records;
-  const rankedReview = rankReviewRecords(postFilterRecords);
+  records = input.excludeInstitutions ? records.filter((record) => record.institutional_risk !== 'high') : records;
+  const rankedReview = rankReviewRecords(records);
+  await confirmContextForTopReviewRecords(rankedReview, input);
+
   const topOverall = rankedReview.slice(0, input.maxReviewRecords).map(toReviewRecord);
-  const topPerIssuer = topByIssuer(postFilterRecords, 3);
-  const matchReady = postFilterRecords
-    .filter((r) => r.match_ready)
+  const topPerIssuer = topByIssuer(records, 3);
+  const confirmationSubset = rankedReview
+    .filter((record) => record.confirmation_summary || record.confirmation_urls.length)
+    .slice(0, Math.max(input.exaTopReviewConfirmations + 10, 20))
+    .map(toReviewRecord);
+  const matchReady = records
+    .filter((record) => record.match_ready)
     .sort((a, b) => b.signal_confidence - a.signal_confidence)
     .slice(0, input.maxMatchReadyRecords)
     .map(toMatchReadyRecord);
+
   const summary = {
-    raw_records: records.length,
-    post_filter_records: postFilterRecords.length,
+    raw_records: mar19.length + substantial.length,
+    post_filter_records: records.length,
     review_records: topOverall.length,
     match_ready_records: matchReady.length,
     excluded_institutions: excludedInstitutions,
     low_confidence_records: lowConfidenceRecords,
     source_stats: sourceStats,
     review_bucket_stats: {
-      A: postFilterRecords.filter((r) => r.review_bucket === 'A').length,
-      B: postFilterRecords.filter((r) => r.review_bucket === 'B').length,
-      C: postFilterRecords.filter((r) => r.review_bucket === 'C').length,
+      A: records.filter((record) => record.review_bucket === 'A').length,
+      B: records.filter((record) => record.review_bucket === 'B').length,
+      C: records.filter((record) => record.review_bucket === 'C').length,
     },
-    blocked_by_counts: Object.entries(postFilterRecords.reduce((acc, r) => {
-      for (const reason of r.blocked_by) acc[reason] = (acc[reason] ?? 0) + 1;
+    blocked_by_counts: Object.entries(records.reduce((acc, record) => {
+      for (const reason of record.blocked_by) acc[reason] = (acc[reason] ?? 0) + 1;
       return acc;
     }, {} as Record<string, number>)).sort((a, b) => b[1] - a[1]),
   };
@@ -84,13 +105,13 @@ async function main() {
   const comparison = {
     before_summary: beforeSummary,
     after_summary: summary,
-    before_top_review_sample: beforeTop30Review.slice(0, 10).map((record: Record<string, unknown>) => ({
+    before_top_review_sample: beforeTopReview.slice(0, 10).map((record: Record<string, unknown>) => ({
       record_id: record.record_id,
       company_name: record.company_name,
       person_name: record.person_name,
       review_bucket: record.review_bucket,
       signal_confidence: record.signal_confidence,
-      nl_relevance_score: record.nl_relevance_score,
+      review_action: record.review_action,
     })),
     after_top_review_sample: topOverall.slice(0, 10).map((record) => ({
       record_id: record.record_id,
@@ -98,14 +119,16 @@ async function main() {
       person_name: record.person_name,
       review_bucket: record.review_bucket,
       signal_confidence: record.signal_confidence,
-      review_priority_score: record.review_priority_score,
-      issuer_desirability_score: record.issuer_desirability_score,
       review_action: record.review_action,
+      context_confirmed: record.context_confirmed,
+      confirmation_evidence_strength: record.confirmation_evidence_strength,
+      review_action_updated: record.review_action_updated,
     })),
   };
 
   writeFileSync('audit_outputs/top20_review_overall.json', JSON.stringify(topOverall, null, 2) + '\n');
   writeFileSync('audit_outputs/top3_review_by_issuer.json', JSON.stringify(topPerIssuer, null, 2) + '\n');
+  writeFileSync('audit_outputs/confirmation_enriched_review_subset.json', JSON.stringify(confirmationSubset, null, 2) + '\n');
   writeFileSync('audit_outputs/top30_match_ready.json', JSON.stringify(matchReady, null, 2) + '\n');
   writeFileSync('audit_outputs/run_summary.json', JSON.stringify(summary, null, 2) + '\n');
   writeFileSync('audit_outputs/before_after_comparison.json', JSON.stringify(comparison, null, 2) + '\n');

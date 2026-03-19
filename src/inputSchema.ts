@@ -15,6 +15,8 @@ export const inputSchema = {
     maxReviewRecords: { type: 'integer', default: 100, minimum: 1, maximum: 1000 },
     maxMatchReadyRecords: { type: 'integer', default: 30, minimum: 1, maximum: 500 },
     exaApiKey: { type: 'string', default: '', editor: 'textfield' },
+    exaTopReviewConfirmations: { type: 'integer', default: 5, minimum: 0, maximum: 25 },
+    exaFreshnessMaxAgeHours: { type: 'integer', default: 72, minimum: 1, maximum: 720 },
     debug: { type: 'boolean', default: false },
   },
   required: [],

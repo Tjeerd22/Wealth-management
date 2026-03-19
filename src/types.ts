@@ -2,6 +2,7 @@ export type PersonType = 'unknown' | 'natural_person' | 'legal_entity' | 'family
 export type InstitutionalRisk = 'low' | 'medium' | 'high' | 'unknown';
 export type ReviewBucket = 'A' | 'B' | 'C';
 export type ReviewAction = 'manual_context_check' | 'manual_person_verify' | 'discard_low_relevance' | 'watchlist_only';
+export type ConfirmationEvidenceStrength = 'none' | 'weak' | 'moderate' | 'strong';
 export type BlockedReason =
   | 'missing_verified_context'
   | 'unconfirmed_disposal'
@@ -24,6 +25,8 @@ export interface ActorInput {
   maxReviewRecords: number;
   maxMatchReadyRecords: number;
   exaApiKey: string;
+  exaTopReviewConfirmations: number;
+  exaFreshnessMaxAgeHours: number;
   debug: boolean;
 }
 
@@ -37,6 +40,46 @@ export interface ReviewBucketStats {
   A: number;
   B: number;
   C: number;
+}
+
+export interface ConfirmationSource {
+  url: string;
+  title: string;
+  source_type: 'issuer' | 'news';
+  domain: string;
+  published_date?: string;
+  summary?: string;
+  highlights: string[];
+}
+
+export interface ConfirmationResult {
+  context_confirmed: boolean;
+  disposal_confirmed: boolean;
+  role_confirmed: boolean;
+  confirmation_urls: string[];
+  confirmation_sources: ConfirmationSource[];
+  confirmation_summary: string;
+  confirmation_evidence_strength: ConfirmationEvidenceStrength;
+  review_action_updated: ReviewAction;
+}
+
+export interface ExaConfirmationCandidate {
+  url: string;
+  title: string;
+  published_date?: string;
+  summary?: string;
+  highlights: string[];
+  score: number;
+  text?: string;
+}
+
+export interface ExaConfirmationContent {
+  url: string;
+  title: string;
+  published_date?: string;
+  summary?: string;
+  highlights: string[];
+  text: string;
 }
 
 export interface RunSummary {
@@ -87,6 +130,14 @@ export interface NormalizedSignalRecord {
   provenance_sources?: string[];
   provenance_record_ids?: string[];
   enrichment_context?: string;
+  context_confirmed: boolean;
+  disposal_confirmed: boolean;
+  role_confirmed: boolean;
+  confirmation_urls: string[];
+  confirmation_sources: ConfirmationSource[];
+  confirmation_summary: string;
+  confirmation_evidence_strength: ConfirmationEvidenceStrength;
+  review_action_updated: ReviewAction;
 }
 
 export interface ReviewRecord {
@@ -110,6 +161,14 @@ export interface ReviewRecord {
   signal_confidence: number;
   match_ready: boolean;
   notes: string;
+  context_confirmed: boolean;
+  disposal_confirmed: boolean;
+  role_confirmed: boolean;
+  confirmation_urls: string[];
+  confirmation_sources: ConfirmationSource[];
+  confirmation_summary: string;
+  confirmation_evidence_strength: ConfirmationEvidenceStrength;
+  review_action_updated: ReviewAction;
 }
 
 export interface MatchReadyRecord {

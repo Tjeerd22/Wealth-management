@@ -40,7 +40,7 @@
     ]
   },
   "after_summary": {
-    "raw_records": 97,
+    "raw_records": 100,
     "post_filter_records": 42,
     "review_records": 20,
     "match_ready_records": 0,
@@ -81,28 +81,28 @@
   },
   "before_top_review_sample": [
     {
+      "record_id": "eac1f855f6897779",
+      "company_name": "Pharming Group N.V.",
+      "person_name": "Outersterp, Van R.",
+      "review_bucket": "A",
+      "signal_confidence": 0.58,
+      "review_action": "manual_context_check"
+    },
+    {
       "record_id": "d9c46a9b2502a35d",
       "company_name": "Universal Music Group N.V.",
       "person_name": "Hu J.l.",
       "review_bucket": "A",
       "signal_confidence": 0.58,
-      "nl_relevance_score": 0.63
+      "review_action": "manual_context_check"
     },
     {
-      "record_id": "eac1f855f6897779",
-      "company_name": "Pharming Group N.V.",
-      "person_name": "Outersterp, Van R.",
-      "review_bucket": "B",
+      "record_id": "48f85442c1bcb3f3",
+      "company_name": "NEPI Rockcastle N.V.",
+      "person_name": "Veer, Van Der A.",
+      "review_bucket": "A",
       "signal_confidence": 0.58,
-      "nl_relevance_score": 0.87
-    },
-    {
-      "record_id": "5e8f2975099be7f0",
-      "company_name": "CEG N.V.",
-      "person_name": "Bayoglu U.",
-      "review_bucket": "B",
-      "signal_confidence": 0.58,
-      "nl_relevance_score": 0.83
+      "review_action": "manual_context_check"
     },
     {
       "record_id": "c0766833d1aec38d",
@@ -110,7 +110,47 @@
       "person_name": "Hendriks R.",
       "review_bucket": "B",
       "signal_confidence": 0.58,
-      "nl_relevance_score": 0.83
+      "review_action": "manual_person_verify"
+    },
+    {
+      "record_id": "5e8f2975099be7f0",
+      "company_name": "CEG N.V.",
+      "person_name": "Bayoglu U.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_action": "manual_person_verify"
+    },
+    {
+      "record_id": "8f5a5286fa3fa503",
+      "company_name": "Coca-Cola Europacific Partners plc",
+      "person_name": "Hollander, Den L.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_action": "manual_context_check"
+    },
+    {
+      "record_id": "ca2ec3303ba7347c",
+      "company_name": "Aegon Ltd.",
+      "person_name": "Klinken, Van J.o.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_action": "manual_context_check"
+    },
+    {
+      "record_id": "ab05c52567fbcab5",
+      "company_name": "Shell Plc",
+      "person_name": "Bounds P.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_action": "manual_person_verify"
+    },
+    {
+      "record_id": "764c5af853150711",
+      "company_name": "Unilever Plc",
+      "person_name": "Ecclissato R.",
+      "review_bucket": "B",
+      "signal_confidence": 0.58,
+      "review_action": "manual_person_verify"
     },
     {
       "record_id": "d880bc23c1747eda",
@@ -118,47 +158,7 @@
       "person_name": "Breidenbach A.",
       "review_bucket": "B",
       "signal_confidence": 0.58,
-      "nl_relevance_score": 0.83
-    },
-    {
-      "record_id": "864ffcba425a4557",
-      "company_name": "Pharming Group N.V.",
-      "person_name": "Relan A.",
-      "review_bucket": "B",
-      "signal_confidence": 0.58,
-      "nl_relevance_score": 0.83
-    },
-    {
-      "record_id": "6ba0225012f73b8c",
-      "company_name": "Pharming Group N.V.",
-      "person_name": "Sanders M.",
-      "review_bucket": "B",
-      "signal_confidence": 0.58,
-      "nl_relevance_score": 0.83
-    },
-    {
-      "record_id": "48f85442c1bcb3f3",
-      "company_name": "NEPI Rockcastle N.V.",
-      "person_name": "Veer, Van Der A.",
-      "review_bucket": "B",
-      "signal_confidence": 0.58,
-      "nl_relevance_score": 0.67
-    },
-    {
-      "record_id": "80a4886a08ab6120",
-      "company_name": "Fugro N.V.",
-      "person_name": "Schallenberg N.",
-      "review_bucket": "B",
-      "signal_confidence": 0.58,
-      "nl_relevance_score": 0.63
-    },
-    {
-      "record_id": "f8807ff489acc609",
-      "company_name": "RHI Magnesita N.V.",
-      "person_name": "Oremovic S.",
-      "review_bucket": "B",
-      "signal_confidence": 0.58,
-      "nl_relevance_score": 0.63
+      "review_action": "manual_person_verify"
     }
   ],
   "after_top_review_sample": [
@@ -168,9 +168,10 @@
       "person_name": "Outersterp, Van R.",
       "review_bucket": "A",
       "signal_confidence": 0.58,
-      "review_priority_score": 0.7424,
-      "issuer_desirability_score": 0.72,
-      "review_action": "manual_context_check"
+      "review_action": "manual_context_check",
+      "context_confirmed": false,
+      "confirmation_evidence_strength": "none",
+      "review_action_updated": "manual_context_check"
     },
     {
       "record_id": "d9c46a9b2502a35d",
@@ -178,9 +179,10 @@
       "person_name": "Hu J.l.",
       "review_bucket": "A",
       "signal_confidence": 0.58,
-      "review_priority_score": 0.652,
-      "issuer_desirability_score": 0.72,
-      "review_action": "manual_context_check"
+      "review_action": "manual_context_check",
+      "context_confirmed": false,
+      "confirmation_evidence_strength": "none",
+      "review_action_updated": "manual_context_check"
     },
     {
       "record_id": "48f85442c1bcb3f3",
@@ -188,9 +190,10 @@
       "person_name": "Veer, Van Der A.",
       "review_bucket": "A",
       "signal_confidence": 0.58,
-      "review_priority_score": 0.6304000000000001,
-      "issuer_desirability_score": 0.54,
-      "review_action": "manual_context_check"
+      "review_action": "manual_context_check",
+      "context_confirmed": false,
+      "confirmation_evidence_strength": "none",
+      "review_action_updated": "manual_context_check"
     },
     {
       "record_id": "c0766833d1aec38d",
@@ -198,9 +201,10 @@
       "person_name": "Hendriks R.",
       "review_bucket": "B",
       "signal_confidence": 0.58,
-      "review_priority_score": 0.6794,
-      "issuer_desirability_score": 0.72,
-      "review_action": "manual_person_verify"
+      "review_action": "manual_person_verify",
+      "context_confirmed": false,
+      "confirmation_evidence_strength": "none",
+      "review_action_updated": "manual_person_verify"
     },
     {
       "record_id": "5e8f2975099be7f0",
@@ -208,9 +212,10 @@
       "person_name": "Bayoglu U.",
       "review_bucket": "B",
       "signal_confidence": 0.58,
-      "review_priority_score": 0.6617999999999999,
-      "issuer_desirability_score": 0.64,
-      "review_action": "manual_person_verify"
+      "review_action": "manual_person_verify",
+      "context_confirmed": false,
+      "confirmation_evidence_strength": "none",
+      "review_action_updated": "manual_person_verify"
     },
     {
       "record_id": "8f5a5286fa3fa503",
@@ -218,9 +223,10 @@
       "person_name": "Hollander, Den L.",
       "review_bucket": "B",
       "signal_confidence": 0.58,
-      "review_priority_score": 0.6348,
-      "issuer_desirability_score": 0.64,
-      "review_action": "manual_context_check"
+      "review_action": "manual_context_check",
+      "context_confirmed": false,
+      "confirmation_evidence_strength": "none",
+      "review_action_updated": "manual_context_check"
     },
     {
       "record_id": "ca2ec3303ba7347c",
@@ -228,9 +234,10 @@
       "person_name": "Klinken, Van J.o.",
       "review_bucket": "B",
       "signal_confidence": 0.58,
-      "review_priority_score": 0.63,
-      "issuer_desirability_score": 0.72,
-      "review_action": "manual_context_check"
+      "review_action": "manual_context_check",
+      "context_confirmed": false,
+      "confirmation_evidence_strength": "none",
+      "review_action_updated": "manual_context_check"
     },
     {
       "record_id": "ab05c52567fbcab5",
@@ -238,9 +245,10 @@
       "person_name": "Bounds P.",
       "review_bucket": "B",
       "signal_confidence": 0.58,
-      "review_priority_score": 0.597,
-      "issuer_desirability_score": 0.72,
-      "review_action": "manual_person_verify"
+      "review_action": "manual_person_verify",
+      "context_confirmed": false,
+      "confirmation_evidence_strength": "none",
+      "review_action_updated": "manual_person_verify"
     },
     {
       "record_id": "764c5af853150711",
@@ -248,9 +256,10 @@
       "person_name": "Ecclissato R.",
       "review_bucket": "B",
       "signal_confidence": 0.58,
-      "review_priority_score": 0.597,
-      "issuer_desirability_score": 0.72,
-      "review_action": "manual_person_verify"
+      "review_action": "manual_person_verify",
+      "context_confirmed": false,
+      "confirmation_evidence_strength": "none",
+      "review_action_updated": "watchlist_only"
     },
     {
       "record_id": "d880bc23c1747eda",
@@ -258,9 +267,10 @@
       "person_name": "Breidenbach A.",
       "review_bucket": "B",
       "signal_confidence": 0.58,
-      "review_priority_score": 0.5894,
-      "issuer_desirability_score": 0.72,
-      "review_action": "manual_person_verify"
+      "review_action": "manual_person_verify",
+      "context_confirmed": false,
+      "confirmation_evidence_strength": "none",
+      "review_action_updated": "watchlist_only"
     }
   ]
 }
