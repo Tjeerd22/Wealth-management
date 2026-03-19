@@ -5,7 +5,9 @@ const institutionPatterns = [
   /\bbank\b/, /asset management/, /\bcapital\b/, /investments?/, /\bfund\b/, /partners?/, /holdings?/,
   /pension/, /pensioen/, /insurance/, /\bgroup\b/, /trust/, /advisors?/, /management/, /global/, /international/,
   /ventures?/, /equity/, /norges bank/, /blackrock/, /ubs/, /goldman/, /jpmorgan/, /morgan stanley/, /state street/,
-  /\bb\.v\.?\b/, /\bn\.v\.?\b/, /\bltd\b/, /\bplc\b/, /\bs\.a\.?\b/, /\bsarl\b/, /\bllc\b/, /\binc\b/, /\bgmbh\b/,
+  /citigroup/, /barclays/, /corporation/, /associates/, /services company/, /financial services/, /chase \& co/,
+  /trading as/, /\bcc\b/, /\bb\.v\.?\b/, /\bn\.v\.?\b/, /\blimited\b/, /\bltd\b/, /\bplc\b/, /\bs\.a\.?\b/,
+  /\bsarl\b/, /\bllc\b/, /\binc\b/, /\bgmbh\b/, /\bag\b/,
 ];
 
 export function assessInstitutionalRisk(name: string): { risk: InstitutionalRisk; notes: string[] } {
@@ -20,11 +22,15 @@ export function assessInstitutionalRisk(name: string): { risk: InstitutionalRisk
 }
 
 export function applyInstitutionalFilter(record: NormalizedSignalRecord): NormalizedSignalRecord {
-  const targetName = `${record.person_name} ${record.company_name}`;
+  const targetName = record.person_name;
   const { risk, notes } = assessInstitutionalRisk(targetName);
   record.institutional_risk = risk;
   record.notes.push(...notes);
-  if (risk === 'high') {
+  if (/\d/.test(record.person_name) || /[()]/.test(record.person_name)) {
+    record.institutional_risk = 'high';
+    record.notes.push('Entity-style punctuation or numeric tokens detected in notifying party name.');
+  }
+  if (record.institutional_risk === 'high') {
     record.natural_person_confidence = Math.max(0, record.natural_person_confidence - 0.45);
     if (record.person_type === 'unknown') record.person_type = 'legal_entity';
   }

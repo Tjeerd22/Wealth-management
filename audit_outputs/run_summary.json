@@ -1,0 +1,87 @@
+{
+  "raw_source_counts": {
+    "afm_mar19": 50,
+    "afm_substantial": 50
+  },
+  "raw_records_after_dedupe": 76,
+  "post_filter_records": 34,
+  "excluded_institutions": 42,
+  "review_records": 30,
+  "match_ready_records": 0,
+  "review_institutional_or_weak": 30,
+  "match_ready_institutional_or_weak": 0,
+  "false_positive_categories": [
+    [
+      "Failed natural person gate.",
+      28
+    ],
+    [
+      "Institutional naming heuristics matched: blackrock, \\binc\\b",
+      12
+    ],
+    [
+      "Signal confidence capped due to incomplete evidence; review-only.",
+      6
+    ],
+    [
+      "Institutional naming heuristics matched: \\bgroup\\b, ubs, \\bag\\b",
+      5
+    ],
+    [
+      "Institutional naming heuristics matched: \\bbank\\b, corporation",
+      4
+    ],
+    [
+      "Institutional naming heuristics matched: investments?, \\bgmbh\\b",
+      4
+    ],
+    [
+      "Institutional naming heuristics matched: \\bgroup\\b, goldman, \\binc\\b",
+      4
+    ],
+    [
+      "Institutional naming heuristics matched: \\bcapital\\b, trading as, \\bcc\\b",
+      2
+    ],
+    [
+      "Institutional naming heuristics matched: \\bbank\\b, norges bank",
+      2
+    ],
+    [
+      "Institutional naming heuristics matched: international",
+      1
+    ],
+    [
+      "Institutional naming heuristics matched: \\bltd\\b",
+      1
+    ],
+    [
+      "Institutional naming heuristics matched: corporation, associates",
+      1
+    ],
+    [
+      "Institutional naming heuristics matched: chase \\& co",
+      1
+    ],
+    [
+      "Institutional naming heuristics matched: citigroup, \\binc\\b",
+      1
+    ],
+    [
+      "Institutional naming heuristics matched: asset management, holdings?, management, \\binc\\b",
+      1
+    ],
+    [
+      "Institutional naming heuristics matched: \\bfund\\b, management, \\bllc\\b",
+      1
+    ],
+    [
+      "Institutional naming heuristics matched: services company, financial services",
+      1
+    ],
+    [
+      "Institutional naming heuristics matched: barclays, \\bplc\\b",
+      1
+    ]
+  ]
+}

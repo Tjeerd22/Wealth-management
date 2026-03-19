@@ -24,6 +24,7 @@ export async function exportReviewDataset(records: NormalizedSignalRecord[], max
   const dataset = await Dataset.open('review');
   const reviewRecords = records
     .filter((record) => record.signal_confidence >= 0.35)
+    .sort((a, b) => b.signal_confidence - a.signal_confidence)
     .slice(0, maxReviewRecords)
     .map(toReviewRecord);
   if (reviewRecords.length) await dataset.pushData(reviewRecords);

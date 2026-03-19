@@ -23,7 +23,11 @@ export function toMatchReadyRecord(record: NormalizedSignalRecord): MatchReadyRe
 
 export async function exportMatchReady(records: NormalizedSignalRecord[], maxMatchReadyRecords: number): Promise<MatchReadyRecord[]> {
   const dataset = await Dataset.open('match-ready');
-  const matchReady = records.filter((record) => record.match_ready).slice(0, maxMatchReadyRecords).map(toMatchReadyRecord);
+  const matchReady = records
+    .filter((record) => record.match_ready)
+    .sort((a, b) => b.signal_confidence - a.signal_confidence)
+    .slice(0, maxMatchReadyRecords)
+    .map(toMatchReadyRecord);
   if (matchReady.length) await dataset.pushData(matchReady);
   return matchReady;
 }
