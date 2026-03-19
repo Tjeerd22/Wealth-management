@@ -17,71 +17,94 @@ import { ActorInput, NormalizedSignalRecord, RunSummary } from './types.js';
 import { logInfo } from './utils/logging.js';
 import { confirmContextForTopReviewRecords } from './enrich/confirmContextForTopReviewRecords.js';
 
+function resolveInput(rawInput: Partial<ActorInput> | null | undefined): ActorInput {
+  const merged = { ...defaultInput, ...(rawInput ?? {}) };
+  const exaApiKey = (merged.exaApiKey || process.env.EXA_API_KEY || '').trim();
+  const runExaConfirmation = merged.runExaConfirmation ?? merged.runExaEnrichment;
+  const topBucketBForExa = merged.topBucketBForExa ?? merged.exaTopReviewConfirmations;
+
+  return {
+    ...merged,
+    exaApiKey,
+    runExaConfirmation,
+    runExaEnrichment: runExaConfirmation,
+    topBucketBForExa,
+    exaTopReviewConfirmations: topBucketBForExa,
+  };
+}
+
 async function run(): Promise<void> {
   await Actor.init();
-  const input = { ...defaultInput, ...(await Actor.getInput<Partial<ActorInput>>() ?? {}) };
-  const sourceStats = { afm_mar19: 0, afm_substantial: 0, exa_enriched: 0 };
-  let records: NormalizedSignalRecord[] = [];
+  try {
+    const input = resolveInput(await Actor.getInput<Partial<ActorInput>>());
+    const sourceStats = { afm_mar19: 0, afm_substantial: 0, exa_enriched: 0 };
+    let records: NormalizedSignalRecord[] = [];
 
-  if (input.runAfmMar19) {
-    const mar19 = await ingestAfmMar19(input.afmMar19CsvUrl || defaultInput.afmMar19CsvUrl);
-    sourceStats.afm_mar19 = mar19.length;
-    records.push(...mar19);
+    if (input.runAfmMar19) {
+      const mar19 = await ingestAfmMar19(input.afmMar19CsvUrl || defaultInput.afmMar19CsvUrl);
+      sourceStats.afm_mar19 = mar19.length;
+      records.push(...mar19);
+    }
+
+    if (input.runAfmSubstantialHoldings) {
+      const substantial = await ingestAfmSubstantialHoldings(input.afmSubstantialHoldingsCsvUrl || defaultInput.afmSubstantialHoldingsCsvUrl);
+      sourceStats.afm_substantial = substantial.length;
+      records.push(...substantial);
+    }
+
+    records = dedupeSignals(records);
+    let excludedInstitutions = 0;
+    let lowConfidenceRecords = 0;
+
+    for (const record of records) {
+      applyInstitutionalFilter(record);
+      record.natural_person_confidence = scoreNaturalPersonConfidence(record);
+      await enrichRecord(record, input);
+      if (record.enrichment_context) sourceStats.exa_enriched += 1;
+      record.nl_relevance_score = scoreNlRelevance(record);
+      record.issuer_desirability_score = scoreIssuerDesirability(record);
+      scoreSignal(record, input.lookbackDays);
+      record.match_ready = true;
+      applySignalGates(record, input);
+      if (input.excludeInstitutions && record.institutional_risk === 'high') excludedInstitutions += 1;
+      if (record.signal_confidence < input.minSignalConfidence) lowConfidenceRecords += 1;
+    }
+
+    const postFilterRecords = input.excludeInstitutions
+      ? records.filter((record) => record.institutional_risk !== 'high')
+      : records;
+
+    await exportRawArchive(records);
+    await confirmContextForTopReviewRecords(rankReviewRecords(postFilterRecords), input);
+    const review = await exportReviewDataset(postFilterRecords, input.maxReviewRecords);
+    const matchReady = await exportMatchReady(postFilterRecords, input.maxMatchReadyRecords);
+    const review_bucket_stats = {
+      A: postFilterRecords.filter((record) => record.review_bucket === 'A').length,
+      B: postFilterRecords.filter((record) => record.review_bucket === 'B').length,
+      C: postFilterRecords.filter((record) => record.review_bucket === 'C').length,
+    };
+
+    const summary: RunSummary = {
+      raw_records: records.length,
+      post_filter_records: postFilterRecords.length,
+      review_records: review.length,
+      match_ready_records: matchReady.length,
+      excluded_institutions: excludedInstitutions,
+      low_confidence_records: lowConfidenceRecords,
+      source_stats: sourceStats,
+      review_bucket_stats,
+    };
+
+    if (!input.exaApiKey) {
+      logInfo('Exa confirmation disabled', { reason: 'No input.exaApiKey or EXA_API_KEY was provided.' });
+    }
+
+    logInfo('Run summary', summary);
+    await Actor.setValue('RUN_SUMMARY', summary);
+    await Actor.setValue('INPUT_SCHEMA', (await import('./inputSchema.js')).inputSchema);
+  } finally {
+    await Actor.exit();
   }
-
-  if (input.runAfmSubstantialHoldings) {
-    const substantial = await ingestAfmSubstantialHoldings(input.afmSubstantialHoldingsCsvUrl || defaultInput.afmSubstantialHoldingsCsvUrl);
-    sourceStats.afm_substantial = substantial.length;
-    records.push(...substantial);
-  }
-
-  records = dedupeSignals(records);
-  let excludedInstitutions = 0;
-  let lowConfidenceRecords = 0;
-
-  for (const record of records) {
-    applyInstitutionalFilter(record);
-    record.natural_person_confidence = scoreNaturalPersonConfidence(record);
-    await enrichRecord(record, input);
-    if (record.enrichment_context) sourceStats.exa_enriched += 1;
-    record.nl_relevance_score = scoreNlRelevance(record);
-    record.issuer_desirability_score = scoreIssuerDesirability(record);
-    scoreSignal(record, input.lookbackDays);
-    record.match_ready = true;
-    applySignalGates(record, input);
-    if (input.excludeInstitutions && record.institutional_risk === 'high') excludedInstitutions += 1;
-    if (record.signal_confidence < input.minSignalConfidence) lowConfidenceRecords += 1;
-  }
-
-  const postFilterRecords = input.excludeInstitutions
-    ? records.filter((record) => record.institutional_risk !== 'high')
-    : records;
-
-  await exportRawArchive(records);
-  await confirmContextForTopReviewRecords(rankReviewRecords(postFilterRecords), input);
-  const review = await exportReviewDataset(postFilterRecords, input.maxReviewRecords);
-  const matchReady = await exportMatchReady(postFilterRecords, input.maxMatchReadyRecords);
-  const review_bucket_stats = {
-    A: postFilterRecords.filter((record) => record.review_bucket === 'A').length,
-    B: postFilterRecords.filter((record) => record.review_bucket === 'B').length,
-    C: postFilterRecords.filter((record) => record.review_bucket === 'C').length,
-  };
-
-  const summary: RunSummary = {
-    raw_records: records.length,
-    post_filter_records: postFilterRecords.length,
-    review_records: review.length,
-    match_ready_records: matchReady.length,
-    excluded_institutions: excludedInstitutions,
-    low_confidence_records: lowConfidenceRecords,
-    source_stats: sourceStats,
-    review_bucket_stats,
-  };
-
-  logInfo('Run summary', summary);
-  await Actor.setValue('RUN_SUMMARY', summary);
-  await Actor.setValue('INPUT_SCHEMA', (await import('./inputSchema.js')).inputSchema);
-  await Actor.exit();
 }
 
 void run();
