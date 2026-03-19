@@ -1,4 +1,5 @@
 import { Actor } from 'apify';
+import { fileURLToPath } from 'node:url';
 import { defaultInput } from './config.js';
 import { ingestAfmMar19 } from './sources/afmMar19.js';
 import { ingestAfmSubstantialHoldings } from './sources/afmSubstantialHoldings.js';
@@ -143,7 +144,12 @@ function getSelectedSources(input: ActorInput): string[] {
   ].filter((value): value is string => Boolean(value));
 }
 
-async function run(): Promise<void> {
+export function appendRecords(target: NormalizedSignalRecord[], source: NormalizedSignalRecord[]): number {
+  for (const record of source) target.push(record);
+  return target.length;
+}
+
+export async function run(): Promise<void> {
   let actorInitialized = false;
   let success = false;
   let outputsWritten = false;
@@ -188,7 +194,9 @@ async function run(): Promise<void> {
       sourceStats.afm_mar19 = mar19.length;
       stageLog('AFM MAR 19 rows loaded', { rows: mar19.length });
       if (!mar19.length) stageWarn('AFM MAR 19 fetch returned empty rows unexpectedly', { url: input.afmMar19CsvUrl });
-      records.push(...mar19);
+      stageLog('starting merge of source records', { source: 'afm_mar19', incomingRows: mar19.length, recordsBeforeMerge: records.length });
+      appendRecords(records, mar19);
+      stageLog('merge completed', { source: 'afm_mar19', recordsAfterMerge: records.length });
     }
 
     if (input.runAfmSubstantialHoldings) {
@@ -197,12 +205,16 @@ async function run(): Promise<void> {
       sourceStats.afm_substantial = substantial.length;
       stageLog('AFM substantial rows loaded', { rows: substantial.length });
       if (!substantial.length) stageWarn('AFM substantial holdings fetch returned empty rows unexpectedly', { url: input.afmSubstantialHoldingsCsvUrl });
-      records.push(...substantial);
+      stageLog('starting merge of source records', { source: 'afm_substantial', incomingRows: substantial.length, recordsBeforeMerge: records.length });
+      appendRecords(records, substantial);
+      stageLog('merge completed', { source: 'afm_substantial', recordsAfterMerge: records.length });
     }
 
     stageLog('normalization started', { records: records.length });
+    stageLog('normalization completed', { records: records.length });
     stageLog('dedupe started', { recordsBeforeDedupe: records.length });
     records = dedupeSignals(records);
+    stageLog('dedupe completed', { recordsAfterDedupe: records.length });
 
     let excludedInstitutions = 0;
     let lowConfidenceRecords = 0;
@@ -221,6 +233,12 @@ async function run(): Promise<void> {
       if (input.excludeInstitutions && record.institutional_risk === 'high') excludedInstitutions += 1;
       if (record.signal_confidence < input.minSignalConfidence) lowConfidenceRecords += 1;
     }
+    stageLog('scoring completed', {
+      recordsScored: records.length,
+      excludedInstitutions,
+      lowConfidenceRecords,
+      exaEnriched: sourceStats.exa_enriched,
+    });
 
     const postFilterRecords = input.excludeInstitutions
       ? records.filter((record) => record.institutional_risk !== 'high')
@@ -294,4 +312,5 @@ async function run(): Promise<void> {
   }
 }
 
-await run();
+const entryFilePath = process.argv[1];
+if (entryFilePath && fileURLToPath(import.meta.url) === entryFilePath) await run();
