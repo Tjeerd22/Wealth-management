@@ -117,6 +117,46 @@ In the Apify Console:
 4. Mark it as secret.
 5. Run the Actor with `runExaConfirmation` enabled.
 
+
+## Runtime troubleshooting
+
+### Build succeeds but run does nothing
+
+If the Actor build passes but the run exits after the Apify system banner, inspect the runtime stage logs from `src/main.ts`. A real run now emits an explicit startup path covering actor init, input resolution, source selection, both AFM fetch stages, normalization, dedupe, scoring, export, output writes, and successful exit.
+
+### Where to look in logs
+
+Look for these runtime markers in order:
+
+- `actor initialized`
+- `input loaded`
+- `normalized input resolved`
+- `source modules selected`
+- `AFM MAR 19 fetch starting`
+- `AFM MAR 19 rows loaded`
+- `AFM substantial holdings fetch starting`
+- `AFM substantial rows loaded`
+- `normalization started`
+- `dedupe started`
+- `scoring started`
+- `exports started`
+- `outputs written`
+- `actor exiting successfully`
+
+The Actor also prints a normalized runtime configuration snapshot with secrets redacted to a boolean presence flag, and it now fails fast if no source module is enabled or if both AFM source URLs normalize to empty values.
+
+### Outputs that should exist after a real run
+
+After a successful run, you should always see:
+
+- the **default dataset** populated with the raw archive export when any records were processed
+- the **default key-value store** containing `RUN_SUMMARY`
+- the **default key-value store** containing `INPUT_SCHEMA`
+- the named **`review`** dataset created by the review export path
+- the named **`match-ready`** dataset created by the match-ready export path
+
+If a source fetch returns zero rows, the logs now call that out explicitly so an empty run is observable instead of silent.
+
 ## Expected outputs
 
 After a run, expect:
