@@ -107,12 +107,11 @@
       "maximum": 720
     },
     "exaApiKey": {
-      "title": "Exa API key",
-      "type": "string",
-      "description": "Exa neural search API key. Optional — if blank, the actor falls back to the EXA_API_KEY environment variable. If neither is set, Exa confirmation is disabled and the run continues without it. The key is never logged. Store this as an Apify secret.",
-      "editor": "textfield",
-      "isSecret": true,
-      "default": ""
+  "title": "Exa API key",
+  "type": "string",
+  "description": "Optional. Secret Exa API key. If left empty, the actor will fall back to EXA_API_KEY from the environment.",
+  "editor": "textfield",
+  "isSecret": true
     },
     "debug": {
       "title": "Debug logging",
