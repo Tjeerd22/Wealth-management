@@ -199,6 +199,9 @@ export interface NormalizedSignalRecord {
   blocked_by: BlockedReason[];
   match_ready: boolean;
   shortlist_eligible: boolean;
+  wealth_relevance_score: number;
+  context_summary: string;
+  evidence_reference: string;
   raw_source_payload_summary: string;
   notes: string[];
   provenance_sources?: string[];
@@ -239,6 +242,9 @@ export interface ReviewRecord {
   signal_confidence: number;
   match_ready: boolean;
   shortlist_eligible: boolean;
+  wealth_relevance_score: number;
+  context_summary: string;
+  evidence_reference: string;
   notes: string;
   context_confirmed: boolean;
   disposal_confirmed: boolean;

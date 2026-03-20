@@ -23,6 +23,9 @@ export async function enrichRecord(record: NormalizedSignalRecord, input: ActorI
     record.company_country = exa.company_country ?? record.company_country;
     record.person_type = exa.person_type ?? record.person_type;
     record.enrichment_context = exa.contextSnippet;
+    if (exa.contextSnippet) {
+      record.context_summary = `${record.context_summary} [Context: ${exa.contextSnippet}]`;
+    }
     record.natural_person_confidence = clamp01(record.natural_person_confidence + (exa.natural_person_confidence_delta ?? 0));
     record.contactability_confidence = clamp01(record.contactability_confidence + (exa.contactability_confidence_delta ?? 0));
     record.notes.push(...(exa.notes ?? []));

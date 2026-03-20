@@ -109,6 +109,9 @@ function applyConfirmation(record: NormalizedSignalRecord, confirmation: Confirm
   record.confirmation_summary = confirmation.confirmation_summary;
   record.confirmation_evidence_strength = confirmation.confirmation_evidence_strength;
   record.review_action_updated = confirmation.review_action_updated;
+  if (confirmation.context_confirmed && confirmation.confirmation_urls.length > 0) {
+    record.evidence_reference = confirmation.confirmation_urls[0];
+  }
 }
 
 export async function confirmContextForTopReviewRecords(records: NormalizedSignalRecord[], input: ActorInput): Promise<NormalizedSignalRecord[]> {

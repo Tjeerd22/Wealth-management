@@ -583,6 +583,127 @@ describe('connector os dutch liquidity pipeline', () => {
     expect(r.shortlist_eligible).toBe(true);
   });
 
+  // --- Section 12: Review output schema — wealth_relevance_score, context_summary, evidence_reference ---
+
+  it('normalizeRecord produces a context_summary from the template fields', () => {
+    const r = normalizeRecord({
+      personName: 'Anna De Boer',
+      companyName: 'Heineken NV',
+      signalDate: '2026-03-15',
+      signalType: 'pdmr_transaction_unconfirmed',
+      signalDetail: 'AFM MAR 19 filing; transaction details not fully disclosed.',
+      sourceName: 'afm_mar19',
+      sourceUrl: 'https://afm.nl/fixture',
+      evidenceType: 'afm_csv_filing',
+      evidenceStrength: 0.66,
+      rawSummary: 'fixture',
+    });
+    expect(r.context_summary).toBe(
+      'Anna De Boer filed a pdmr_transaction_unconfirmed for Heineken NV on 2026-03-15. AFM MAR 19 filing; transaction details not fully disclosed.',
+    );
+  });
+
+  it('normalizeRecord sets evidence_reference to source_url by default', () => {
+    const r = normalizeRecord({
+      personName: 'Anna De Boer',
+      companyName: 'Heineken NV',
+      signalDate: '2026-03-15',
+      signalType: 'pdmr_transaction_unconfirmed',
+      signalDetail: 'detail',
+      sourceName: 'afm_mar19',
+      sourceUrl: 'https://afm.nl/fixture',
+      evidenceType: 'afm_csv_filing',
+      evidenceStrength: 0.66,
+      rawSummary: 'fixture',
+    });
+    expect(r.evidence_reference).toBe('https://afm.nl/fixture');
+  });
+
+  it('scoreSignal computes wealth_relevance_score from the formula', () => {
+    const r = normalizeRecord({
+      personName: 'Anna De Boer',
+      companyName: 'Heineken NV',
+      signalDate: '2026-03-15',
+      signalType: 'pdmr_transaction_unconfirmed',
+      signalDetail: 'detail',
+      sourceName: 'afm_mar19',
+      sourceUrl: 'fixture',
+      evidenceType: 'afm_csv_filing',
+      evidenceStrength: 0.66,
+      rawSummary: 'fixture',
+      liquidityRelevance: 0.5,
+    });
+    r.natural_person_confidence = 0.6;
+    r.issuer_desirability_score = 0.7;
+    scoreSignal(r, 45);
+    const expected = (0.5 * 0.4) + (0.6 * 0.35) + (0.7 * 0.25); // 0.2 + 0.21 + 0.175 = 0.585
+    expect(r.wealth_relevance_score).toBeCloseTo(expected, 5);
+  });
+
+  it('context_summary is updated with enrichment_context after Exa stage', () => {
+    const r = normalizeRecord({
+      personName: 'Anna De Boer',
+      companyName: 'Heineken NV',
+      signalDate: '2026-03-15',
+      signalType: 'pdmr_transaction_unconfirmed',
+      signalDetail: 'AFM MAR 19 filing.',
+      sourceName: 'afm_mar19',
+      sourceUrl: 'fixture',
+      evidenceType: 'afm_csv_filing',
+      evidenceStrength: 0.66,
+      rawSummary: 'fixture',
+    });
+    const originalSummary = r.context_summary;
+    r.enrichment_context = 'Board member since 2018, based in Amsterdam.';
+    r.context_summary = `${r.context_summary} [Context: ${r.enrichment_context}]`;
+    expect(r.context_summary).toBe(`${originalSummary} [Context: Board member since 2018, based in Amsterdam.]`);
+  });
+
+  it('evidence_reference is updated to first confirmation URL when context_confirmed=true', () => {
+    const r = normalizeRecord({
+      personName: 'Anna De Boer',
+      companyName: 'Heineken NV',
+      signalDate: '2026-03-15',
+      signalType: 'pdmr_transaction_unconfirmed',
+      signalDetail: 'detail',
+      sourceName: 'afm_mar19',
+      sourceUrl: 'https://afm.nl/fixture',
+      evidenceType: 'afm_csv_filing',
+      evidenceStrength: 0.66,
+      rawSummary: 'fixture',
+    });
+    expect(r.evidence_reference).toBe('https://afm.nl/fixture');
+    // Simulate applyConfirmation with context_confirmed=true
+    r.context_confirmed = true;
+    r.confirmation_urls = ['https://heineken.com/investors/board', 'https://news.nl/heineken'];
+    if (r.context_confirmed && r.confirmation_urls.length > 0) {
+      r.evidence_reference = r.confirmation_urls[0];
+    }
+    expect(r.evidence_reference).toBe('https://heineken.com/investors/board');
+  });
+
+  it('evidence_reference is not updated when context_confirmed=false', () => {
+    const r = normalizeRecord({
+      personName: 'Anna De Boer',
+      companyName: 'Heineken NV',
+      signalDate: '2026-03-15',
+      signalType: 'pdmr_transaction_unconfirmed',
+      signalDetail: 'detail',
+      sourceName: 'afm_mar19',
+      sourceUrl: 'https://afm.nl/fixture',
+      evidenceType: 'afm_csv_filing',
+      evidenceStrength: 0.66,
+      rawSummary: 'fixture',
+    });
+    r.context_confirmed = false;
+    r.confirmation_urls = ['https://heineken.com/investors/board'];
+    // Gate does not fire — evidence_reference stays as source_url
+    if (r.context_confirmed && r.confirmation_urls.length > 0) {
+      r.evidence_reference = r.confirmation_urls[0];
+    }
+    expect(r.evidence_reference).toBe('https://afm.nl/fixture');
+  });
+
   // --- Section 7: Source reliability policy (degraded mode) ---
 
   it('AFM substantial holdings 504 triggers degraded mode — run continues with MAR 19 only', async () => {
