@@ -1,23 +1,24 @@
 import { DEFAULT_AFM_MAR19_CSV_URL } from '../config.js';
 import { normalizeRecord } from '../normalize/normalizeRecord.js';
-import { logNormalizationHealth, mapSourceField } from '../normalize/sourceNormalization.js';
+import { logNormalizationHealth, mapRequiredSourceField, validateSourceSchema } from '../normalize/sourceNormalization.js';
 import { NormalizedSignalRecord } from '../types.js';
 import { fetchCsvRows } from '../utils/csv.js';
 
-const MAR19_FIELD_MAP = {
-  signalDateRaw: ['Transactie', 'TransactionDate', 'transaction_date', 'Date', 'date'],
-  companyName: ['Uitgevende instelling', 'IssuingInstitution', 'issuer', 'Company', 'company'],
-  personName: ['Meldingsplichtige', 'Notifiable', 'Name', 'name', 'LastName', 'last_name'],
-  personLastName: ['MeldingsPlichtigeAchternaam', 'LastName', 'last_name'],
-} as const;
+export const AFM_MAR19_REQUIRED_COLUMNS = [
+  'Transactie',
+  'Uitgevende instelling',
+  'Meldingsplichtige',
+  'MeldingsPlichtigeAchternaam',
+] as const;
 
 export async function ingestAfmMar19(url = DEFAULT_AFM_MAR19_CSV_URL): Promise<NormalizedSignalRecord[]> {
   const rows = await fetchCsvRows(url, { sourceName: 'AFM MAR 19' });
+  validateSourceSchema(rows, { sourceName: 'AFM MAR 19', requiredColumns: [...AFM_MAR19_REQUIRED_COLUMNS] });
   const records = rows.map((row) => {
-    const signalDateRaw = mapSourceField(row, [...MAR19_FIELD_MAP.signalDateRaw]);
-    const companyName = mapSourceField(row, [...MAR19_FIELD_MAP.companyName]);
-    const personName = mapSourceField(row, [...MAR19_FIELD_MAP.personName]);
-    const personLastName = mapSourceField(row, [...MAR19_FIELD_MAP.personLastName]);
+    const signalDateRaw = mapRequiredSourceField(row, 'Transactie');
+    const companyName = mapRequiredSourceField(row, 'Uitgevende instelling');
+    const personName = mapRequiredSourceField(row, 'Meldingsplichtige');
+    const personLastName = mapRequiredSourceField(row, 'MeldingsPlichtigeAchternaam');
     return normalizeRecord({
       personName,
       personLastName,
@@ -34,6 +35,6 @@ export async function ingestAfmMar19(url = DEFAULT_AFM_MAR19_CSV_URL): Promise<N
       personType: 'unknown',
     });
   });
-  logNormalizationHealth('afm_mar19', rows, records);
+  logNormalizationHealth('afm_mar19', records);
   return records;
 }
