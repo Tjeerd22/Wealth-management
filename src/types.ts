@@ -79,6 +79,7 @@ export interface ActorInput {
   excludeInstitutions: boolean;
   maxReviewRecords: number;
   maxMatchReadyRecords: number;
+  maxShortlistRecords: number;
   topBucketBForExa?: number;
   exaApiKey: string;
   exaTopReviewConfirmations: number;
@@ -154,6 +155,7 @@ export interface RunSummary {
     default_dataset_items: number;
     review_items: number;
     match_ready_items: number;
+    shortlist_items: number;
     kv_run_summary: boolean;
     kv_input_schema: boolean;
   };
@@ -196,6 +198,7 @@ export interface NormalizedSignalRecord {
   review_action: ReviewAction;
   blocked_by: BlockedReason[];
   match_ready: boolean;
+  shortlist_eligible: boolean;
   raw_source_payload_summary: string;
   notes: string[];
   provenance_sources?: string[];
@@ -235,6 +238,7 @@ export interface ReviewRecord {
   blocked_by: BlockedReason[];
   signal_confidence: number;
   match_ready: boolean;
+  shortlist_eligible: boolean;
   notes: string;
   context_confirmed: boolean;
   disposal_confirmed: boolean;

@@ -3,6 +3,7 @@ import { applyBlockedByRules } from '../scoring/reviewClassification.js';
 
 export function applySignalGates(record: NormalizedSignalRecord, input: ActorInput): NormalizedSignalRecord {
   const hasVerifiedContext = Boolean(record.role || record.enrichment_context);
+  record.shortlist_eligible = false;
 
   if (record.natural_person_confidence < input.minNaturalPersonConfidence) {
     record.match_ready = false;
@@ -28,5 +29,18 @@ export function applySignalGates(record: NormalizedSignalRecord, input: ActorInp
   }
 
   applyBlockedByRules(record, input.minNaturalPersonConfidence, input.minSignalConfidence);
+
+  const primaryOrMerged = record.source_role === 'primary'
+    || (record.source_role === 'secondary_confirmation' && (record.provenance_sources ?? []).includes('afm_mar19'));
+  const typeOk = !record.signal_type.includes('unclear') || record.liquidity_relevance >= 0.6;
+
+  record.shortlist_eligible = (
+    record.natural_person_confidence >= 0.45
+    && record.signal_confidence >= 0.40
+    && (record.review_bucket === 'A' || record.review_bucket === 'B')
+    && primaryOrMerged
+    && typeOk
+  );
+
   return record;
 }
