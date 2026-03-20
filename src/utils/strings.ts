@@ -28,7 +28,15 @@ export function surnameKey(value: string): string {
 }
 
 export function splitName(fullName: string): { firstName: string; lastName: string } {
-  const parts = normalizeWhitespace(fullName).split(' ');
+  const normalized = normalizeWhitespace(fullName);
+  // Handle "Lastname, Firstname" format used by AFM substantial holdings exports.
+  const commaIdx = normalized.indexOf(',');
+  if (commaIdx > 0) {
+    const beforeComma = normalized.slice(0, commaIdx).trim();
+    const afterComma = normalized.slice(commaIdx + 1).trim();
+    if (afterComma) return { firstName: afterComma, lastName: beforeComma };
+  }
+  const parts = normalized.split(' ');
   if (parts.length <= 1) return { firstName: parts[0] ?? '', lastName: parts[0] ?? '' };
   return { firstName: parts.slice(0, -1).join(' '), lastName: parts.at(-1) ?? '' };
 }

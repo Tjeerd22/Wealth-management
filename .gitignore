@@ -2,3 +2,5 @@ node_modules/
 dist/
 .apify_storage*/
 storage/
+.env
+.env.*
