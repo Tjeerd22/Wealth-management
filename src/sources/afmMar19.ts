@@ -1,9 +1,15 @@
 import { DEFAULT_AFM_MAR19_CSV_URL } from '../config.js';
 import { normalizeRecord } from '../normalize/normalizeRecord.js';
-import { logNormalizationHealth, mapRequiredSourceField, validateSourceSchema } from '../normalize/sourceNormalization.js';
+import { logNormalizationHealth, validateRequiredColumns } from '../normalize/sourceNormalization.js';
 import { NormalizedSignalRecord } from '../types.js';
 import { fetchCsvRows } from '../utils/csv.js';
 
+/**
+ * Hard schema contract for AFM MAR 19 (Melding artikel 19 MAR).
+ * These are the exact Dutch column names from the AFM export endpoint.
+ * If any of these are absent, the run fails immediately — silent degradation
+ * into empty-string fields is not allowed.
+ */
 export const AFM_MAR19_REQUIRED_COLUMNS = [
   'Transactie',
   'Uitgevende instelling',
@@ -13,12 +19,18 @@ export const AFM_MAR19_REQUIRED_COLUMNS = [
 
 export async function ingestAfmMar19(url = DEFAULT_AFM_MAR19_CSV_URL): Promise<NormalizedSignalRecord[]> {
   const rows = await fetchCsvRows(url, { sourceName: 'AFM MAR 19' });
-  validateSourceSchema(rows, { sourceName: 'AFM MAR 19', requiredColumns: [...AFM_MAR19_REQUIRED_COLUMNS] });
+
+  // Hard fail if required columns are absent. This catches AFM schema changes before
+  // any normalization runs and prevents silent field-to-empty-string corruption.
+  validateRequiredColumns(rows, AFM_MAR19_REQUIRED_COLUMNS, 'AFM MAR 19');
+
   const records = rows.map((row) => {
-    const signalDateRaw = mapRequiredSourceField(row, 'Transactie');
-    const companyName = mapRequiredSourceField(row, 'Uitgevende instelling');
-    const personName = mapRequiredSourceField(row, 'Meldingsplichtige');
-    const personLastName = mapRequiredSourceField(row, 'MeldingsPlichtigeAchternaam');
+    // Direct column access — no generic alias fallback for required fields.
+    const signalDateRaw = row['Transactie'] ?? '';
+    const companyName = row['Uitgevende instelling'] ?? '';
+    const personName = row['Meldingsplichtige'] ?? '';
+    const personLastName = row['MeldingsPlichtigeAchternaam'] ?? '';
+
     return normalizeRecord({
       personName,
       personLastName,
@@ -35,6 +47,7 @@ export async function ingestAfmMar19(url = DEFAULT_AFM_MAR19_CSV_URL): Promise<N
       personType: 'unknown',
     });
   });
-  logNormalizationHealth('afm_mar19', records);
+
+  logNormalizationHealth('afm_mar19', rows, records);
   return records;
 }

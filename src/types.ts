@@ -1,4 +1,27 @@
 export type PersonType = 'unknown' | 'natural_person' | 'legal_entity' | 'family_holding';
+
+/**
+ * Explicit run state. Exactly one of these is reported in RUN_SUMMARY.
+ *
+ * - succeeded: all enabled sources fetched successfully, valid outputs written.
+ * - degraded:  one source failed after retries; pipeline continued with remaining
+ *              sources and wrote valid outputs. degraded_run will be true.
+ * - failed:    pipeline threw an unrecoverable error. No valid data outputs guaranteed.
+ *              The actor exits with a non-zero exit code.
+ */
+export type FinalRunState = 'succeeded' | 'degraded' | 'failed';
+
+export interface SourceFetchStatus {
+  /** Whether the source was configured to run. */
+  enabled: boolean;
+  /** Outcome of the fetch+parse stage for this source. */
+  status: 'ok' | 'skipped' | 'degraded' | 'failed';
+  row_count: number;
+  retries_attempted: number;
+  elapsed_ms: number;
+  http_status?: number;
+  error?: string;
+}
 export type InstitutionalRisk = 'low' | 'medium' | 'high' | 'unknown';
 export type ReviewBucket = 'A' | 'B' | 'C';
 export type ReviewAction = 'manual_context_check' | 'manual_person_verify' | 'discard_low_relevance' | 'watchlist_only';
@@ -96,8 +119,12 @@ export interface ExaConfirmationContent {
 }
 
 export interface RunSummary {
-  run_state: RunState;
+  final_run_state: FinalRunState;
   degraded_run: boolean;
+  source_status: {
+    afm_mar19: SourceFetchStatus;
+    afm_substantial: SourceFetchStatus;
+  };
   raw_records: number;
   post_filter_records: number;
   review_records: number;
@@ -111,8 +138,8 @@ export interface RunSummary {
     default_dataset_items: number;
     review_items: number;
     match_ready_items: number;
-    kv_run_summary_written: boolean;
-    kv_input_schema_written: boolean;
+    kv_run_summary: boolean;
+    kv_input_schema: boolean;
   };
 }
 
