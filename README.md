@@ -1,213 +1,165 @@
 # Connector OS Dutch HNWI Signals
 
-This repository is now structured so it can be connected directly to Apify as a **Git-based Actor source**. The actor keeps the existing Dutch HNWI signal business logic intact and only adjusts project structure, configuration, and runtime compatibility needed for Apify builds.
+This actor ingests two AFM CSV sources and applies a strict review pipeline without broadening source scope or loosening match-ready gates.
 
-## Apify actor structure
+## Source schema contract
 
-The repository root now contains the files Apify expects for Git-based Actor builds:
+The actor now enforces explicit source-specific CSV contracts immediately after parsing.
 
-```text
-.actor/
-  actor.json
-  input_schema.json
-Dockerfile
-package.json
-tsconfig.json
-README.md
-src/
-tests/
-```
+### AFM MAR 19 required columns
 
-## What the actor does
+- `Transactie`
+- `Uitgevende instelling`
+- `Meldingsplichtige`
+- `MeldingsPlichtigeAchternaam`
 
-The actor ingests AFM MAR 19 and AFM substantial holdings CSV feeds, applies the existing normalization, filtering, scoring, deduplication, and export pipeline, and writes Apify-friendly outputs:
+### AFM substantial holdings required columns
 
-AFM exports may arrive as semicolon-delimited CSV with a UTF-8 BOM, so the shared ingestion layer now explicitly tries semicolon parsing first, falls back to comma parsing when needed, and logs the selected delimiter plus parsed row counts.
+- `Datum meldingsplicht`
+- `Uitgevende instelling`
+- `Meldingsplichtige`
+- `Kvk-nr`
+- `Plaats`
 
-The AFM-only runtime is also hardened for large real-world AFM exports: source-record merging now uses iterative appends instead of spread-based bulk pushes, which prevents stack overflows when substantial holdings files reach 250k+ rows.
+If a required column is missing, the run fails fast with a clear error. The runtime also logs the parsed columns and any unexpected extra columns for operational inspection.
 
-- **Default dataset**: raw archive of processed records.
-- **Named dataset `review`**: analyst review export.
-- **Named dataset `match-ready`**: strict match-ready export.
-- **Default key-value store**:
-  - `RUN_SUMMARY`
-  - `INPUT_SCHEMA`
+## Source-specific mapping
 
-## Actor input in Apify
+The actor does not rely on generic header guessing.
 
-The Apify Console input schema includes these primary fields:
+### AFM MAR 19 mapping
 
-- `runAfmMar19`
-- `runAfmSubstantialHoldings`
-- `runExaConfirmation`
-- `afmMar19CsvUrl`
-- `afmSubstantialHoldingsCsvUrl`
-- `lookbackDays`
-- `minSignalConfidence`
-- `minNaturalPersonConfidence`
-- `maxReviewRecords`
-- `maxMatchReadyRecords`
-- `topBucketBForExa`
-- `exaApiKey` (secret)
-- `debug`
+- `Transactie -> signal_date_raw`
+- `Uitgevende instelling -> company_name`
+- `Meldingsplichtige -> person_name`
+- `MeldingsPlichtigeAchternaam -> person_last_name`
 
-### EXA API key behavior
+### AFM substantial holdings mapping
 
-The runtime resolves the Exa key in this order:
+- `Datum meldingsplicht -> signal_date_raw`
+- `Uitgevende instelling -> company_name`
+- `Meldingsplichtige -> person_name`
+- `Kvk-nr -> kvk_number`
+- `Plaats -> city`
 
-1. `input.exaApiKey`
-2. `process.env.EXA_API_KEY`
-3. if neither is present, Exa confirmation is skipped cleanly
+Ownership percentages are kept only in compact source metadata plus canonical percentage fields.
 
-That means you can either:
+## Normalization health checks
 
-- paste the key into the Actor input as `exaApiKey`, or
-- configure `EXA_API_KEY` as a secret environment variable in Apify Console
+For each source the actor logs:
 
-## Connect this repo to Apify as a Git source
+- total rows
+- rows with `company_name`
+- rows with `person_name`
+- rows with `signal_date`
+- rows with all required identity fields
+- three sample normalized records
 
-In the Apify Console:
+The actor fails fast when more than 90% of rows are missing `company_name` or `person_name` after source-specific mapping.
 
-1. Create a new Actor.
-2. Choose **Source code → Git repository**.
-3. Enter the repository URL for this repo.
-4. If you need a non-default branch, set the branch in the Git source settings.
-5. For monorepos, Apify supports `branch:path` selection. This repository is not a monorepo, so use the repository root as the source path.
+## Dedupe invariants
 
-### Git source examples
+Dedupe is intentionally conservative and identity-safe.
 
-- Repo URL: `https://github.com/<org>/<repo>.git`
-- Optional monorepo-style source selector example: `main:actors/connector-os-dutch-hnwi-signals`
+- Unknown identities do not share a dedupe key.
+- Missing `signal_date` prevents shared dedupe keys.
+- Distinct dates remain distinct.
+- Records are not merged by issuer-only or surname-only heuristics.
+- The runtime logs first keys per source, before/after counts, merge counts, top merge reasons, suspicious groups, and an implausible reduction warning.
 
-For this repository, point Apify at the repo root because the Actor files live at the top level.
+## Source reliability and degraded mode
 
-## Build and run on Apify
+### Required source behavior
 
-Apify reads `.actor/actor.json`, uses the root `Dockerfile`, installs dependencies, builds TypeScript, and starts the compiled Actor from `dist/main.js`.
+- If AFM MAR 19 fails, the run fails.
+- AFM substantial holdings retries up to 2 times on timeout or HTTP 5xx.
+- If AFM substantial holdings still fails after those retries, the run may continue in degraded mode using MAR 19 only.
+- If both sources fail, the run fails.
 
-### Local validation
+### Degraded-mode meaning
 
-```bash
-npm install
-npm run build
-npm test
-npm run lint
-npm start
-```
+A degraded run is allowed only when:
 
-## Configure the Actor in Apify
+- AFM MAR 19 succeeded, and
+- AFM substantial holdings exhausted its retry policy on a retryable failure, and
+- outputs are still written successfully.
 
-### Option A: provide Exa key in input
+The run summary records:
 
-Paste a value into the secret input field:
+- `run_state`
+- `degraded_run`
+- per-source `source_status`
+- reduced source coverage through row counts and source status details
 
-```json
-{
-  "runAfmMar19": true,
-  "runAfmSubstantialHoldings": true,
-  "runExaConfirmation": true,
-  "topBucketBForExa": 5,
-  "exaApiKey": "YOUR_EXA_KEY"
-}
-```
+## Truthful run outcomes
 
-### Option B: configure `EXA_API_KEY` as an Apify secret environment variable
+The actor uses explicit final states:
 
-In the Apify Console:
+- `failed`
+- `degraded`
+- `succeeded`
 
-1. Open the Actor.
-2. Go to **Settings**.
-3. Add environment variable `EXA_API_KEY`.
-4. Mark it as secret.
-5. Run the Actor with `runExaConfirmation` enabled.
+Internal pipeline failure is rethrown and fails the run unless the run intentionally entered degraded mode and still wrote valid outputs.
 
+## Export size bounds
 
-## Runtime troubleshooting
+Raw archive dataset items are bounded before every dataset write.
 
-### Build succeeds but run does nothing
+- Serialized item size is estimated before write.
+- Notes, provenance IDs, provenance sources, confirmation URLs, and confirmation sources are capped.
+- Large text summaries are truncated.
+- If an item still remains too large, oversized audit detail is moved to KV store under `RAW_ARCHIVE_AUDIT_<record_id>` and the dataset item is compacted to a safe pointer.
+- Compaction is logged.
 
-If the Actor build passes but the run exits after the Apify system banner, inspect the runtime stage logs from `src/main.ts`. A real run now emits an explicit startup path covering actor init, input resolution, source selection, both AFM fetch stages, normalization, dedupe, scoring, export, output writes, and successful exit.
+## Large-source handling
 
-### Where to look in logs
+AFM substantial holdings is treated as a large source.
 
-Look for these runtime markers in order:
+- Source-specific canonical records stay compact.
+- No giant array spreads are used for source merging.
+- Provenance and notes growth are bounded during export.
+- The actor avoids carrying unnecessary raw payload structures through the pipeline.
+
+## Runtime log sequence
+
+Expected operational log sequence:
 
 - `actor initialized`
 - `input loaded`
-- `normalized input resolved`
-- `source modules selected`
-- `AFM MAR 19 fetch starting`
-- `AFM MAR 19 rows loaded`
-- `AFM substantial holdings fetch starting`
-- `AFM substantial rows loaded`
-- `starting merge of source records`
-- `merge completed`
-- `normalization started`
-- `normalization completed`
+- `normalized runtime config`
+- `source selected`
+- `source fetch started`
+- `source fetch completed`
+- `source parse completed`
+- `source normalization health`
 - `dedupe started`
 - `dedupe completed`
 - `scoring started`
 - `scoring completed`
 - `exports started`
 - `outputs written`
-- `actor exiting successfully`
+- `final run state`
 
-The Actor also prints a normalized runtime configuration snapshot with secrets redacted to a boolean presence flag, and it now fails fast if no source module is enabled or if both AFM source URLs normalize to empty values.
+## Run summary fields
 
-### Outputs that should exist after a real run
+The run summary includes:
 
-After a successful run, you should always see:
+- `degraded_run`
+- `source_status`
+- `raw_records`
+- `post_filter_records`
+- `review_records`
+- `match_ready_records`
+- `excluded_institutions`
+- `low_confidence_records`
+- `review_bucket_stats`
+- `outputs_written`
 
-- the **default dataset** populated with the raw archive export when any records were processed
-- the **default key-value store** containing `RUN_SUMMARY`
-- the **default key-value store** containing `INPUT_SCHEMA`
-- the named **`review`** dataset created by the review export path
-- the named **`match-ready`** dataset created by the match-ready export path
+## Local validation
 
-If a source fetch returns zero rows, the logs now call that out explicitly so an empty run is observable instead of silent.
-
-## Expected outputs
-
-After a run, expect:
-
-- **Dataset**: raw archive records
-- **Dataset `review`**: review candidates sorted by the existing ranking logic
-- **Dataset `match-ready`**: only records that satisfy the unchanged strict gating logic
-- **Key-value store `RUN_SUMMARY`**: aggregate run counts
-- **Key-value store `INPUT_SCHEMA`**: runtime copy of the input schema
-
-## Known limitations
-
-- AFM source availability depends on the upstream CSV endpoints.
-- Exa confirmation is optional and remains a confirmation/context layer only.
-- If no Exa API key is configured, Exa confirmation is skipped without failing the run.
-- Existing business rules, match-ready strictness, and data sources are intentionally unchanged.
-
-
-## Dedupe invariants
-
-The AFM-only dedupe stage is intentionally conservative:
-
-- Exact merges require the same normalized person name, normalized issuer name, signal date, signal type, and source.
-- Initial/surname merges are only allowed when the source, issuer, signal type, and exact date also match.
-- Distinct dates are never merged.
-- Dedupe groups do not chain across already-merged aliases; each record is matched only against a stable per-key canonical record.
-- The runtime logs records before dedupe, records after dedupe, merge counts, top merge reasons, suspiciously large groups, and a warning when the reduction ratio looks implausibly high.
-
-## Raw archive size limits
-
-The default dataset is now bounded before each `Dataset.pushData` call:
-
-- Each raw archive item is serialized and checked against an 8,000,000-byte safety limit.
-- Oversized `notes`, `provenance_record_ids`, `provenance_sources`, `confirmation_urls`, and `confirmation_sources` arrays are capped.
-- `signal_detail`, `raw_source_payload_summary`, `confirmation_summary`, and `enrichment_context` are truncated when needed.
-- If a record is still too large after normal compaction, the full audit detail is moved to the default key-value store under `RAW_ARCHIVE_AUDIT_<record_id>` and the dataset item keeps only a compact pointer plus summary.
-- Review and match-ready exports keep their existing semantics; only the raw archive representation is compacted for storage safety.
-
-## Remaining manual steps in Apify Console
-
-1. Create the Actor from this Git repository.
-2. Confirm the build succeeds.
-3. Configure either `exaApiKey` in Actor input or `EXA_API_KEY` in environment variables.
-4. Run a test execution from the Apify UI.
-5. Review the default dataset, `review` dataset, `match-ready` dataset, and `RUN_SUMMARY` in the default key-value store.
+```bash
+npm install
+npm test
+npm run lint
+npm run build
+```
