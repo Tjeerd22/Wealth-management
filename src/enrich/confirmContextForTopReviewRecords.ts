@@ -2,6 +2,11 @@ import { ActorInput, ConfirmationEvidenceStrength, ConfirmationResult, Confirmat
 import { fetchExaContents, searchExa } from '../sources/exaEnrichment.js';
 import { parseDate } from '../utils/dates.js';
 
+// Maximum number of records confirmed concurrently.
+// Each record makes 2 search calls + 1 contents call — keep concurrency modest
+// to stay within Exa rate limits and avoid Apify actor timeout.
+const CONFIRMATION_CONCURRENCY = 5;
+
 function shiftDate(date: string, days: number): string | undefined {
   const parsed = parseDate(date);
   if (!parsed) return undefined;
@@ -114,70 +119,95 @@ function applyConfirmation(record: NormalizedSignalRecord, confirmation: Confirm
   }
 }
 
+/**
+ * Confirm context for a single record via Exa.
+ * Isolated so that a failure on one record does not abort the entire confirmation pass.
+ */
+async function confirmOneRecord(record: NormalizedSignalRecord, input: ActorInput): Promise<void> {
+  const startPublishedDate = shiftDate(record.signal_date, -14);
+  const endPublishedDate = shiftDate(record.signal_date, 14);
+  const candidates: Array<ExaConfirmationCandidate & { source_type: 'issuer' | 'news' }> = [];
+
+  for (const pass of buildSearchPasses(record)) {
+    const results = await searchExa({
+      query: pass.query,
+      numResults: 4,
+      includeDomains: pass.includeDomains,
+      startPublishedDate,
+      endPublishedDate,
+      highlights: { numSentences: 2 },
+      summary: { query: `${record.person_name} ${record.company_name} ${record.signal_date}` },
+    }, input.exaApiKey);
+    candidates.push(...results.map((result) => ({ ...result, source_type: pass.source_type })));
+  }
+
+  const bestCandidates = [...candidates]
+    .sort((a, b) => scoreCandidate(b, b.source_type, record) - scoreCandidate(a, a.source_type, record))
+    .filter((candidate, index, arr) => arr.findIndex((other) => other.url === candidate.url) === index)
+    .slice(0, 3);
+
+  if (!bestCandidates.length) {
+    applyConfirmation(record, defaultConfirmation(record, 'Exa confirmation returned no shortlisted URLs.'));
+    return;
+  }
+
+  const contents = await fetchExaContents({
+    urls: bestCandidates.map((candidate) => candidate.url),
+    text: true,
+    highlights: { query: `${record.person_name} ${record.company_name} role disposal`, numSentences: 2 },
+    summary: { query: `${record.person_name} ${record.company_name} context` },
+    maxAgeHours: input.exaFreshnessMaxAgeHours,
+  }, input.exaApiKey);
+
+  const sources: ConfirmationSource[] = bestCandidates.map((candidate) => {
+    const content = contents.find((item) => item.url === candidate.url);
+    const domain = new URL(candidate.url).hostname.replace(/^www\./, '');
+    return {
+      url: candidate.url,
+      title: content?.title || candidate.title,
+      source_type: candidate.source_type,
+      domain,
+      published_date: content?.published_date || candidate.published_date,
+      summary: content?.summary || candidate.summary,
+      highlights: content?.highlights?.length ? content.highlights : candidate.highlights,
+    };
+  });
+
+  applyConfirmation(record, summarizeEvidence(sources, record));
+  if (record.context_confirmed) record.notes.push('Exa confirmation strengthened review context without changing AFM source-of-truth status.');
+  if (record.disposal_confirmed) record.notes.push('Exa context mentioned disposal-like language; AFM evidence remains authoritative.');
+}
+
 export async function confirmContextForTopReviewRecords(records: NormalizedSignalRecord[], input: ActorInput): Promise<NormalizedSignalRecord[]> {
   const ranked = [...records];
   const shortlist = ranked.filter((record) => record.review_bucket === 'A');
-  const bucketB = ranked.filter((record) => record.review_bucket === 'B').slice(0, input.exaTopReviewConfirmations);
+  // Support both the canonical field (topBucketBForExa) and the legacy alias.
+  const topBucketBCount = input.topBucketBForExa ?? input.exaTopReviewConfirmations;
+  const bucketB = ranked.filter((record) => record.review_bucket === 'B').slice(0, topBucketBCount);
   const targets = [...shortlist, ...bucketB];
 
-  if (!input.runExaEnrichment || !input.exaApiKey) {
+  // Use canonical runExaConfirmation with fallback to legacy runExaEnrichment alias.
+  const exaEnabled = (input.runExaConfirmation ?? input.runExaEnrichment) && Boolean(input.exaApiKey);
+  if (!exaEnabled) {
     for (const record of targets) applyConfirmation(record, defaultConfirmation(record, 'Exa confirmation skipped because API access was not configured.'));
     return records;
   }
 
-  for (const record of targets) {
-    const startPublishedDate = shiftDate(record.signal_date, -14);
-    const endPublishedDate = shiftDate(record.signal_date, 14);
-    const candidates: Array<ExaConfirmationCandidate & { source_type: 'issuer' | 'news' }> = [];
-
-    for (const pass of buildSearchPasses(record)) {
-      const results = await searchExa({
-        query: pass.query,
-        numResults: 4,
-        includeDomains: pass.includeDomains,
-        startPublishedDate,
-        endPublishedDate,
-        highlights: { numSentences: 2 },
-        summary: { query: `${record.person_name} ${record.company_name} ${record.signal_date}` },
-      }, input.exaApiKey);
-      candidates.push(...results.map((result) => ({ ...result, source_type: pass.source_type })));
-    }
-
-    const bestCandidates = [...candidates]
-      .sort((a, b) => scoreCandidate(b, b.source_type, record) - scoreCandidate(a, a.source_type, record))
-      .filter((candidate, index, arr) => arr.findIndex((other) => other.url === candidate.url) === index)
-      .slice(0, 3);
-
-    if (!bestCandidates.length) {
-      applyConfirmation(record, defaultConfirmation(record, 'Exa confirmation returned no shortlisted URLs.'));
-      continue;
-    }
-
-    const contents = await fetchExaContents({
-      urls: bestCandidates.map((candidate) => candidate.url),
-      text: true,
-      highlights: { query: `${record.person_name} ${record.company_name} role disposal`, numSentences: 2 },
-      summary: { query: `${record.person_name} ${record.company_name} context` },
-      maxAgeHours: input.exaFreshnessMaxAgeHours,
-    }, input.exaApiKey);
-
-    const sources: ConfirmationSource[] = bestCandidates.map((candidate) => {
-      const content = contents.find((item) => item.url === candidate.url);
-      const domain = new URL(candidate.url).hostname.replace(/^www\./, '');
-      return {
-        url: candidate.url,
-        title: content?.title || candidate.title,
-        source_type: candidate.source_type,
-        domain,
-        published_date: content?.published_date || candidate.published_date,
-        summary: content?.summary || candidate.summary,
-        highlights: content?.highlights?.length ? content.highlights : candidate.highlights,
-      };
-    });
-
-    applyConfirmation(record, summarizeEvidence(sources, record));
-    if (record.context_confirmed) record.notes.push('Exa confirmation strengthened review context without changing AFM source-of-truth status.');
-    if (record.disposal_confirmed) record.notes.push('Exa context mentioned disposal-like language; AFM evidence remains authoritative.');
+  // Process targets in concurrent batches. Serial processing of 30–50 records with 3 Exa
+  // calls each causes actor timeout in Apify. CONFIRMATION_CONCURRENCY=5 keeps Exa load
+  // predictable while cutting wall-clock time by ~5×.
+  for (let i = 0; i < targets.length; i += CONFIRMATION_CONCURRENCY) {
+    await Promise.allSettled(
+      targets.slice(i, i + CONFIRMATION_CONCURRENCY).map(async (record) => {
+        try {
+          await confirmOneRecord(record, input);
+        } catch (e) {
+          // One record failure must not abort the entire confirmation pass.
+          applyConfirmation(record, defaultConfirmation(record,
+            `Exa confirmation error: ${e instanceof Error ? e.message : String(e)}`));
+        }
+      }),
+    );
   }
 
   return records;

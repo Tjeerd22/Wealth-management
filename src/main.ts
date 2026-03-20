@@ -146,7 +146,6 @@ export async function loadSourceWithPolicy(
 export async function run(): Promise<void> {
   let actorInitialized = false;
   let finalRunState: FinalRunState = 'failed';
-  let degradedRun = false;
 
   const sourceStatus: RunSummary['source_status'] = {
     afm_mar19: makeEmptySourceStatus(false),
@@ -162,6 +161,12 @@ export async function run(): Promise<void> {
     const input = resolveInput(rawInput);
     const runtimeConfig = toRuntimeConfig(input);
     stageLog('normalized runtime config', runtimeConfig);
+    // Log Exa key availability without logging the key value.
+    stageLog('exa key status', {
+      exaKeyAvailable: runtimeConfig.hasExaApiKey,
+      runExaConfirmation: runtimeConfig.runExaConfirmation,
+      source: runtimeConfig.hasExaApiKey ? (input.exaApiKey ? 'actor_input' : 'env_EXA_API_KEY') : 'none',
+    });
     const selectedSources = getSelectedSources(input);
     stageLog('source selected', { selectedSources });
     if (!selectedSources.length) throw new Error('No source module is enabled after input normalization.');
@@ -243,10 +248,37 @@ export async function run(): Promise<void> {
     let excludedInstitutions = 0;
     let lowConfidenceRecords = 0;
     stageLog('scoring started', { recordsAfterDedupe: records.length });
+
+    // Pass 1: fast synchronous pre-scoring (no I/O).
+    // Sets institutional_risk and natural_person_confidence so Exa delta can add to the correct base.
     for (const record of records) {
       applyInstitutionalFilter(record);
       record.natural_person_confidence = scoreNaturalPersonConfidence(record);
-      await enrichRecord(record, input);
+    }
+
+    // Pass 2: parallel Exa per-record enrichment (only when explicitly enabled).
+    // Serial enrichment of 50–100 records causes actor timeout in Apify.
+    // Batches of 8 keep Exa load predictable while cutting wall-clock time substantially.
+    if (input.runExaEnrichment && input.exaApiKey) {
+      const EXA_ENRICH_CONCURRENCY = 8;
+      for (let i = 0; i < records.length; i += EXA_ENRICH_CONCURRENCY) {
+        await Promise.allSettled(
+          records.slice(i, i + EXA_ENRICH_CONCURRENCY).map(async (r) => {
+            try {
+              await enrichRecord(r, input);
+            } catch (e) {
+              stageWarn('Exa per-record enrichment error (non-fatal)', {
+                recordId: r.record_id,
+                error: e instanceof Error ? e.message : String(e),
+              });
+            }
+          }),
+        );
+      }
+    }
+
+    // Pass 3: complete scoring (uses enrichment_context / role data set by Exa in pass 2).
+    for (const record of records) {
       if (record.enrichment_context) sourceStats.exa_enriched += 1;
       record.nl_relevance_score = scoreNlRelevance(record);
       record.issuer_desirability_score = scoreIssuerDesirability(record);

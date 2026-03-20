@@ -1,0 +1,29 @@
+Datum meldingsplicht ; Uitgevende instelling ; Meldingsplichtige ; Kvk-nr ; Plaats ; CapitalInterestBefore ; CapitalInterestAfter
+2026-03-18 ; "ASML Holding NV" ; "Van den Berg, Thomas" ; 12345678 ; Veldhoven ; 6.20 ; 4.80
+2026-03-18 ; "ASML Holding NV" ; "Van den Berg, Thomas" ; 12345678 ; Veldhoven ; 6.20 ; 4.80
+2026-03-17 ; "Adyen NV" ; "Pieter van Dam" ; 23456789 ; Amsterdam ; 5.10 ; 3.90
+2026-03-16 ; "Universal Music Group N.V." ; "BlackRock Inc" ; 99001234 ; New York ; 8.50 ; 9.20
+2026-03-15 ; "Philips NV" ; "R. Janssen" ; 34567890 ; Eindhoven ; 4.30 ; 2.10
+2026-03-14 ; "Heineken NV" ; "Alvarez Garcia, Carlos" ; 45678901 ; Amsterdam ;  ; 3.50
+2026-03-13 ; "ING Groep NV" ; "Staatsbank Holding BV" ; 56789012 ; Amsterdam ; 7.80 ; 6.50
+2026-03-12 ; "IMCD NV" ; "Straten, Rob van der" ; 67890123 ; Rotterdam ; 3.20 ; 1.90
+2026-03-11 ; "ABN AMRO Bank NV" ; "Vanguard Group Inc" ; 98765432 ; Philadelphia ; 4.90 ; 5.30
+2026-03-10 ; "Arcadis NV" ; "Van Leeuwen, Dirk" ; 78901234 ; Arnhem ; 2.80 ; 1.50
+2026-03-09 ; "OCI NV" ; "Al Muhairi, Khalid" ; 89012345 ; Abu Dhabi ; 12.40 ; 9.80
+2026-03-08 ; "ASR Nederland NV" ; "De Ruiter, Lars" ; 90123456 ; Utrecht ; 5.60 ; 4.10
+2026-03-07 ; "Fugro NV" ; "Norges Bank Investment Management" ; 87654321 ; Oslo ;  ; 5.10
+2026-03-06 ; "Unilever PLC" ; "Sharma, Priya" ; 11223344 ; London ; 3.10 ; 2.40
+2026-03-05 ; "Aegon NV" ; "De Vries-Jansen, Karen" ; 22334455 ; Den Haag ; 6.80 ; 5.20
+2026-03-04 ; "Akzo Nobel NV" ; "Van Rooij, Bart" ; 33445566 ; Amsterdam ; 4.40 ; 2.80
+2026-03-03 ; "DSM-Firmenich AG" ; "Fischer, Hans" ; 44556677 ; Kaiseraugst ; 3.70 ; 4.20
+2026-03-02 ; "BE Semiconductor Industries NV" ; "Chen, Wei" ; 55667788 ; Duiven ; 7.20 ; 5.60
+2026-03-01 ; "NN Group NV" ; "Fidelity Management Research" ; 66778899 ; Boston ;  ; 6.30
+2026-02-28 ; "Prosus NV" ; "Bosman, Jeroen" ; 77889900 ; Amsterdam ; 5.50 ; 3.80
+2026-02-27 ; "CTP NV" ; "Novak, Karel" ; 88990011 ; Brno ; 4.10 ; 2.60
+2026-02-26 ; "Wolters Kluwer NV" ; "M. Verhoeven" ; 99001122 ; Alphen aan den Rijn ; 3.80 ; 2.20
+2026-02-25 ; "Randstad NV" ; "Van Amstel Familie Holding" ; 10111213 ; Amsterdam ; 9.30 ; 7.10
+2026-02-24 ; "Flow Traders NV" ; "BlackRock Inc" ; 99001234 ; New York ; 5.20 ; 6.80
+2026-02-23 ; "Signify NV" ; "De Jong, Irene" ; 20212223 ; Eindhoven ;  ; 3.20
+2026-02-22 ; "Corbion NV" ; "Van Beek, Annelies" ; 30313233 ; Amsterdam ; 4.60 ; 3.30
+2026-02-21 ; "Pharming Group N.V." ; "H.G. Timmerman" ; 40414243 ; Leiden ; 6.10 ; 4.50
+2026-02-20 ; "Just Eat Takeaway.com NV" ; "O'Brien, Sean" ; 50515253 ; Amsterdam ; 3.40 ; 1.80
