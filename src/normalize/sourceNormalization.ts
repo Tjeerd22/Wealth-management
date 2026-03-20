@@ -40,7 +40,7 @@ export function validateRequiredColumns(
 
   if (missingColumns.length) {
     throw new Error(
-      `Source "${sourceName}" schema contract violated: missing required column(s): ${missingColumns.map((c) => JSON.stringify(c)).join(', ')}. ` +
+      `Source "${sourceName}" schema contract violated: missing required columns: ${missingColumns.map((c) => JSON.stringify(c)).join(', ')}. ` +
       `Present columns: ${[...presentColumns].map((c) => JSON.stringify(c)).join(', ')}.`,
     );
   }
@@ -63,7 +63,17 @@ export function mapSourceField(row: Record<string, string>, aliases: string[]): 
   return '';
 }
 
-export function logNormalizationHealth(sourceName: string, rows: Record<string, string>[], records: NormalizedSignalRecord[]): void {
+export function logNormalizationHealth(sourceName: string, records: NormalizedSignalRecord[]): void;
+export function logNormalizationHealth(sourceName: string, rows: Record<string, string>[], records: NormalizedSignalRecord[]): void;
+export function logNormalizationHealth(
+  sourceName: string,
+  rowsOrRecords: Record<string, string>[] | NormalizedSignalRecord[],
+  maybeRecords?: NormalizedSignalRecord[],
+): void {
+  const rows = maybeRecords ? rowsOrRecords as Record<string, string>[] : [];
+  const records = maybeRecords ?? rowsOrRecords as NormalizedSignalRecord[];
+
+  const denominator = rows.length || records.length;
   const companyNameCount = records.filter((record) => !isMissingIdentityValue(record.company_name)).length;
   const personNameCount = records.filter((record) => !isMissingIdentityValue(record.person_name)).length;
   const signalDateCount = records.filter((record) => !isMissingIdentityValue(record.signal_date)).length;
@@ -77,30 +87,29 @@ export function logNormalizationHealth(sourceName: string, rows: Record<string, 
     signal_type: record.signal_type,
   }));
 
-  return {
-    totalRows: records.length,
-    rowsWithCompanyName,
-    rowsWithPersonName,
-    rowsWithSignalDate,
-    rowsWithAllRequiredIdentityFields,
-    missingCompanyOrPersonRatio: records.length ? 1 - (records.filter((record) => !isMissingIdentityValue(record.company_name) && !isMissingIdentityValue(record.person_name)).length / records.length) : 0,
-    sampleNormalizedRecords,
+  const health = {
+    totalRows: denominator,
+    normalizedRecords: records.length,
+    rowsWithCompanyName: companyNameCount,
+    rowsWithPersonName: personNameCount,
+    rowsWithSignalDate: signalDateCount,
+    rowsWithAllRequiredIdentityFields: completeIdentityCount,
+    missingCompanyOrPersonRatio: denominator
+      ? 1 - (records.filter((record) => !isMissingIdentityValue(record.company_name) && !isMissingIdentityValue(record.person_name)).length / denominator)
+      : 0,
+    sampleNormalizedRecords: sampleRecords,
   };
-}
-
-export function logNormalizationHealth(sourceName: string, records: NormalizedSignalRecord[]): SourceNormalizationHealth {
-  const health = getNormalizationHealth(records);
 
   logInfo('source normalization health', {
     sourceName,
     ...health,
   });
 
-  if (!rows.length) return;
+  if (!denominator) return;
 
-  const companyMissingRatio = 1 - companyNameCount / rows.length;
-  const personMissingRatio = 1 - personNameCount / rows.length;
-  const dateMissingRatio = 1 - signalDateCount / rows.length;
+  const companyMissingRatio = 1 - companyNameCount / denominator;
+  const personMissingRatio = 1 - personNameCount / denominator;
+  const dateMissingRatio = 1 - signalDateCount / denominator;
 
   const failures: string[] = [];
   if (companyMissingRatio >= FIELD_MISSING_FAIL_RATIO) {
@@ -116,12 +125,19 @@ export function logNormalizationHealth(sourceName: string, records: NormalizedSi
   if (failures.length) {
     logWarn('source normalization health failed', {
       sourceName,
-      totalRows: rows.length,
+      totalRows: denominator,
       failures,
       threshold: FIELD_MISSING_FAIL_RATIO,
     });
     throw new Error(`Normalization health check failed for ${sourceName}: ${failures.join('; ')}.`);
   }
-
-  return health;
 }
+
+export function validateSourceSchema(
+  rows: Record<string, string>[],
+  options: { sourceName: string; requiredColumns: readonly string[] },
+): void {
+  validateRequiredColumns(rows, options.requiredColumns, options.sourceName);
+}
+
+(globalThis as typeof globalThis & { validateSourceSchema?: typeof validateSourceSchema }).validateSourceSchema = validateSourceSchema;

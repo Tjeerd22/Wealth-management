@@ -117,8 +117,6 @@ export async function ingestAfmSubstantialHoldings(
         `plaats=${city}`,
         `kapitaalbelang_voor=${before}`,
         `kapitaalbelang_na=${after}`,
-        `stemrecht_voor=${votingBefore}`,
-        `stemrecht_na=${votingAfter}`,
       ].join('; '),
       notes: [reduction ? 'Reduction appears explicit in AFM holdings export.' : 'Holding change direction unclear; preserve for review only.'],
       personType: 'unknown',

@@ -55,17 +55,6 @@ export interface ActorInput {
   debug: boolean;
 }
 
-export type RunState = 'failed' | 'degraded' | 'succeeded';
-
-export interface SourceRuntimeStatus {
-  status: 'succeeded' | 'failed' | 'degraded' | 'skipped';
-  row_count: number;
-  retries: number;
-  elapsed_ms: number;
-  http_status?: number;
-  error_message?: string;
-}
-
 export interface SourceStats {
   afm_mar19: number;
   afm_substantial: number;
@@ -121,10 +110,7 @@ export interface ExaConfirmationContent {
 export interface RunSummary {
   final_run_state: FinalRunState;
   degraded_run: boolean;
-  source_status: {
-    afm_mar19: SourceFetchStatus;
-    afm_substantial: SourceFetchStatus;
-  };
+  source_status: Record<'afm_mar19' | 'afm_substantial', SourceFetchStatus>;
   raw_records: number;
   post_filter_records: number;
   review_records: number;
@@ -132,7 +118,6 @@ export interface RunSummary {
   excluded_institutions: number;
   low_confidence_records: number;
   source_stats: SourceStats;
-  source_status: Record<string, SourceRuntimeStatus>;
   review_bucket_stats: ReviewBucketStats;
   outputs_written: {
     default_dataset_items: number;
