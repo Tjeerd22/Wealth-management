@@ -52,6 +52,17 @@ export function validateRequiredColumns(
 }
 
 /**
+ * Alternative entry point for schema validation with a named-argument style.
+ * Equivalent to validateRequiredColumns — exposed for tests that prefer this call shape.
+ */
+export function validateSourceSchema(
+  rows: Record<string, string>[],
+  { sourceName, requiredColumns }: { sourceName: string; requiredColumns: string[] },
+): void {
+  validateRequiredColumns(rows, requiredColumns, sourceName);
+}
+
+/**
  * mapSourceField is retained for optional/non-required field lookups only.
  * Required fields must be accessed directly after validateRequiredColumns passes.
  */
@@ -63,22 +74,12 @@ export function mapSourceField(row: Record<string, string>, aliases: string[]): 
   return '';
 }
 
-export function logNormalizationHealth(sourceName: string, records: NormalizedSignalRecord[]): void;
-export function logNormalizationHealth(sourceName: string, rows: Record<string, string>[], records: NormalizedSignalRecord[]): void;
-export function logNormalizationHealth(
-  sourceName: string,
-  rowsOrRecords: Record<string, string>[] | NormalizedSignalRecord[],
-  maybeRecords?: NormalizedSignalRecord[],
-): void {
-  const rows = maybeRecords ? rowsOrRecords as Record<string, string>[] : [];
-  const records = maybeRecords ?? rowsOrRecords as NormalizedSignalRecord[];
-
-  const denominator = rows.length || records.length;
+export function logNormalizationHealth(sourceName: string, records: NormalizedSignalRecord[]): void {
   const companyNameCount = records.filter((record) => !isMissingIdentityValue(record.company_name)).length;
   const personNameCount = records.filter((record) => !isMissingIdentityValue(record.person_name)).length;
   const signalDateCount = records.filter((record) => !isMissingIdentityValue(record.signal_date)).length;
   const completeIdentityCount = records.filter((record) => hasCanonicalIdentity(record)).length;
-  const sampleRecords = records.slice(0, 3).map((record) => ({
+  const sampleNormalizedRecords = records.slice(0, 3).map((record) => ({
     record_id: record.record_id,
     person_name: record.person_name,
     person_last_name: record.person_last_name,
@@ -87,29 +88,21 @@ export function logNormalizationHealth(
     signal_type: record.signal_type,
   }));
 
-  const health = {
-    totalRows: denominator,
-    normalizedRecords: records.length,
+  logInfo('source normalization health', {
+    sourceName,
+    totalRows: records.length,
     rowsWithCompanyName: companyNameCount,
     rowsWithPersonName: personNameCount,
     rowsWithSignalDate: signalDateCount,
     rowsWithAllRequiredIdentityFields: completeIdentityCount,
-    missingCompanyOrPersonRatio: denominator
-      ? 1 - (records.filter((record) => !isMissingIdentityValue(record.company_name) && !isMissingIdentityValue(record.person_name)).length / denominator)
-      : 0,
-    sampleNormalizedRecords: sampleRecords,
-  };
-
-  logInfo('source normalization health', {
-    sourceName,
-    ...health,
+    sampleNormalizedRecords,
   });
 
-  if (!denominator) return;
+  if (!records.length) return;
 
-  const companyMissingRatio = 1 - companyNameCount / denominator;
-  const personMissingRatio = 1 - personNameCount / denominator;
-  const dateMissingRatio = 1 - signalDateCount / denominator;
+  const companyMissingRatio = 1 - companyNameCount / records.length;
+  const personMissingRatio = 1 - personNameCount / records.length;
+  const dateMissingRatio = 1 - signalDateCount / records.length;
 
   const failures: string[] = [];
   if (companyMissingRatio >= FIELD_MISSING_FAIL_RATIO) {
@@ -125,19 +118,12 @@ export function logNormalizationHealth(
   if (failures.length) {
     logWarn('source normalization health failed', {
       sourceName,
-      totalRows: denominator,
+      totalRows: records.length,
       failures,
       threshold: FIELD_MISSING_FAIL_RATIO,
     });
     throw new Error(`Normalization health check failed for ${sourceName}: ${failures.join('; ')}.`);
   }
-}
-
-export function validateSourceSchema(
-  rows: Record<string, string>[],
-  options: { sourceName: string; requiredColumns: readonly string[] },
-): void {
-  validateRequiredColumns(rows, options.requiredColumns, options.sourceName);
 }
 
 (globalThis as typeof globalThis & { validateSourceSchema?: typeof validateSourceSchema }).validateSourceSchema = validateSourceSchema;

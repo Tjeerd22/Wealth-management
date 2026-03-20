@@ -92,6 +92,44 @@ export function appendRecords(target: NormalizedSignalRecord[], source: Normaliz
   return target.length;
 }
 
+export interface SourceLoadResult {
+  degraded: boolean;
+  status: { status: 'ok' | 'degraded' | 'failed'; retries: number; error?: string };
+  records: NormalizedSignalRecord[];
+}
+
+/**
+ * Executes a source fetch function with the appropriate policy for the given source.
+ *
+ * - afm_mar19: no retry; throws `Error('AFM MAR 19 failed: ...')` on first failure.
+ * - afm_substantial: retries up to SUBSTANTIAL_RETRY_LIMIT times; returns degraded result on exhaustion.
+ */
+export async function loadSourceWithPolicy(
+  sourceKey: 'afm_mar19' | 'afm_substantial',
+  _url: string,
+  fetchFn: () => Promise<NormalizedSignalRecord[]>,
+): Promise<SourceLoadResult> {
+  const isPrimary = sourceKey === 'afm_mar19';
+  const maxRetries = isPrimary ? 0 : SUBSTANTIAL_RETRY_LIMIT;
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      const records = await fetchFn();
+      return { degraded: false, status: { status: 'ok', retries: attempt }, records };
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxRetries) {
+        await sleep(getRetryDelayMs(attempt + 1));
+      }
+    }
+  }
+
+  const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
+  if (isPrimary) throw new Error(`AFM MAR 19 failed: ${errorMsg}`);
+  return { degraded: true, status: { status: 'degraded', retries: maxRetries, error: errorMsg }, records: [] };
+}
+
 function makeEmptySourceStatus(enabled: boolean): SourceFetchStatus {
   return { enabled, status: enabled ? 'failed' : 'skipped', row_count: 0, retries_attempted: 0, elapsed_ms: 0 };
 }

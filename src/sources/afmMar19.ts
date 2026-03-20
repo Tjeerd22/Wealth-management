@@ -48,6 +48,6 @@ export async function ingestAfmMar19(url = DEFAULT_AFM_MAR19_CSV_URL): Promise<N
     });
   });
 
-  logNormalizationHealth('afm_mar19', rows, records);
+  logNormalizationHealth('afm_mar19', records);
   return records;
 }
