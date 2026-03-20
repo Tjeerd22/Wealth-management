@@ -1,5 +1,6 @@
 import { logInfo, logWarn } from '../utils/logging.js';
 import { NormalizedSignalRecord } from '../types.js';
+import { hasCanonicalIdentity, isUnknownIdentityValue } from '../normalize/sourceNormalization.js';
 import { normalizeCompanyName, normalizeName } from '../utils/strings.js';
 
 const SUSPICIOUS_GROUP_THRESHOLD = 25;
@@ -98,7 +99,15 @@ function samePersonVariant(a: NormalizedSignalRecord, b: NormalizedSignalRecord)
   return hasAbbreviatedGivenName(a.person_name) || hasAbbreviatedGivenName(b.person_name);
 }
 
+function hasSafeDedupeIdentity(record: NormalizedSignalRecord): boolean {
+  return hasCanonicalIdentity(record)
+    && !isUnknownIdentityValue(record.person_last_name)
+    && !isUnknownIdentityValue(normalizeCompanyName(record.company_name))
+    && !isUnknownIdentityValue(normalizeName(record.person_name));
+}
+
 function exactGroupKey(record: NormalizedSignalRecord): string {
+  if (!hasSafeDedupeIdentity(record)) return `incomplete_identity|${record.source_name}|${record.record_id}|${record.source_url}`;
   return [
     normalizeName(record.person_name),
     normalizeCompanyName(record.company_name),
@@ -109,6 +118,7 @@ function exactGroupKey(record: NormalizedSignalRecord): string {
 }
 
 function variantGroupKey(record: NormalizedSignalRecord): string {
+  if (!hasSafeDedupeIdentity(record)) return `incomplete_variant_identity|${record.source_name}|${record.record_id}|${record.source_url}`;
   return [
     record.person_last_name,
     firstTokenInitial(record.person_name),
@@ -119,7 +129,20 @@ function variantGroupKey(record: NormalizedSignalRecord): string {
   ].join('|');
 }
 
+function logPreDedupeKeys(records: NormalizedSignalRecord[]): void {
+  const bySource = new Map<string, string[]>();
+  for (const record of records) {
+    if (!bySource.has(record.source_name)) bySource.set(record.source_name, []);
+    const keys = bySource.get(record.source_name)!;
+    if (keys.length < 5) keys.push(exactGroupKey(record));
+  }
+  for (const [sourceName, keys] of bySource.entries()) {
+    logInfo('pre-dedupe exact keys', { sourceName, keys });
+  }
+}
+
 export function dedupeSignalsWithStats(records: NormalizedSignalRecord[]): DedupeResult {
+  logPreDedupeKeys(records);
   const exactGroups = new Map<string, DedupeGroup>();
   const variantGroups = new Map<string, DedupeGroup>();
   const deduped: NormalizedSignalRecord[] = [];

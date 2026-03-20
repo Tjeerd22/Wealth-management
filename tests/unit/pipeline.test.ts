@@ -4,6 +4,7 @@ import { fetchCsvRows, parseCsv } from '../../src/utils/csv.js';
 import { ingestAfmMar19 } from '../../src/sources/afmMar19.js';
 import { ingestAfmSubstantialHoldings } from '../../src/sources/afmSubstantialHoldings.js';
 import { normalizeRecord } from '../../src/normalize/normalizeRecord.js';
+import { logNormalizationHealth } from '../../src/normalize/sourceNormalization.js';
 import { applyInstitutionalFilter } from '../../src/filters/institutionalFilter.js';
 import { scoreNaturalPersonConfidence } from '../../src/filters/personConfidence.js';
 import { dedupeSignals } from '../../src/dedupe/dedupeSignals.js';
@@ -51,6 +52,44 @@ describe('connector os dutch liquidity pipeline', () => {
     expect(substantialRecords).toHaveLength(3);
     expect(substantialRecords[1].capital_interest_before).toBe(6.2);
     expect(substantialRecords[1].capital_interest_after).toBe(4.8);
+  });
+
+
+  it('maps Dutch AFM MAR 19 headers into canonical normalized fields', async () => {
+    const records = await ingestAfmMar19(mar19SemicolonFixtureUrl.pathname);
+    expect(records[0].signal_date).toBe('2026-03-19');
+    expect(records[0].company_name).toBe('Universal Music Group N.V.');
+    expect(records[0].person_name).toBe('Jansen, Eva');
+    expect(records[0].person_last_name).toBe('jansen');
+    expect(records[0].raw_source_payload_summary).toContain('transactie=2026-03-19');
+    expect(records[0].raw_source_payload_summary).toContain('uitgevende_instelling=Universal Music Group N.V.');
+  });
+
+  it('maps Dutch AFM substantial holdings headers into canonical normalized fields', async () => {
+    const records = await ingestAfmSubstantialHoldings(substantialSemicolonFixtureUrl.pathname);
+    expect(records[0].signal_date).toBe('2026-03-19');
+    expect(records[0].company_name).toBe('Pharming Group N.V.');
+    expect(records[0].person_name).toBe('Bank Of America Corporation');
+    expect(records[0].raw_source_payload_summary).toContain('kvk_nr=');
+    expect(records[0].raw_source_payload_summary).toContain('plaats=');
+  });
+
+  it('fails fast when a source loses canonical identity coverage on too many rows', () => {
+    const rows = [{ Transactie: '2026-03-19' }, { Transactie: '2026-03-18' }, { Transactie: '2026-03-17' }];
+    const records = rows.map((row, index) => normalizeRecord({
+      personName: '',
+      companyName: '',
+      signalDate: row.Transactie ?? '',
+      signalType: 'pdmr_transaction_unconfirmed',
+      signalDetail: `row-${index}`,
+      sourceName: 'afm_mar19',
+      sourceUrl: 'fixture',
+      evidenceType: 'afm_csv_filing',
+      evidenceStrength: 0.66,
+      rawSummary: 'fixture',
+    }));
+
+    expect(() => logNormalizationHealth('afm_mar19', rows, records)).toThrow(/Normalization health check failed/);
   });
 
   it('flags a clear institution record from substantial holdings', () => {
@@ -208,6 +247,14 @@ describe('connector os dutch liquidity pipeline', () => {
     const b = normalizeRecord({ personName: 'Jan de Vries', companyName: 'Adyen NV', signalDate: '2026-03-01', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A', sourceName: 'afm_mar19', sourceUrl: 'b', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'b' });
     const deduped = dedupeSignals([a, b]);
     expect(deduped).toHaveLength(1);
+  });
+
+
+  it('does not merge records that are missing canonical identity fields', () => {
+    const a = normalizeRecord({ personName: '', companyName: '', signalDate: '', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A', sourceName: 'afm_mar19', sourceUrl: 'a', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'a' });
+    const b = normalizeRecord({ personName: '', companyName: '', signalDate: '', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'B', sourceName: 'afm_mar19', sourceUrl: 'b', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'b' });
+    const deduped = dedupeSignals([a, b]);
+    expect(deduped).toHaveLength(2);
   });
 
   it('keeps ambiguous family holding as review-only with explicit blockers', () => {
