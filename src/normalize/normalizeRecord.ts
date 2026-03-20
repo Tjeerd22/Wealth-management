@@ -4,6 +4,7 @@ import { NormalizedSignalRecord, PersonType } from '../types.js';
 
 interface NormalizeInput {
   personName: string;
+  personLastName?: string;
   role?: string;
   companyName: string;
   signalType: string;
@@ -21,15 +22,18 @@ interface NormalizeInput {
 }
 
 export function normalizeRecord(input: NormalizeInput): NormalizedSignalRecord {
-  const { firstName, lastName } = splitName(input.personName);
+  const normalizedPersonName = titleCase(input.personName.trim());
+  const normalizedCompanyName = input.companyName.trim();
+  const normalizedExplicitLastName = (input.personLastName ?? '').trim();
+  const { firstName, lastName } = splitName(normalizedPersonName);
   const signalDate = toIsoDate(input.signalDate);
   return {
-    record_id: deterministicId(input.sourceName, input.personName, input.companyName, signalDate, input.signalType),
-    person_name: titleCase(input.personName),
-    person_last_name: surnameKey(lastName),
+    record_id: deterministicId(input.sourceName, normalizedPersonName, normalizedCompanyName, signalDate, input.signalType),
+    person_name: normalizedPersonName,
+    person_last_name: surnameKey(normalizedExplicitLastName || lastName),
     person_type: input.personType ?? 'unknown',
     role: input.role ?? '',
-    company_name: input.companyName.trim(),
+    company_name: normalizedCompanyName,
     company_domain: '',
     company_country: 'Netherlands',
     signal_type: input.signalType,
