@@ -39,6 +39,7 @@ export async function ingestAfmMar19(url = DEFAULT_AFM_MAR19_CSV_URL): Promise<N
       signalType: 'pdmr_transaction_unconfirmed',
       signalDetail: `AFM MAR 19 filing for ${companyName || 'unmapped issuer'}; transaction details not fully disclosed in CSV export.`,
       sourceName: 'afm_mar19',
+      sourceRole: 'primary',
       sourceUrl: url,
       evidenceType: 'afm_csv_filing',
       evidenceStrength: 0.66,

@@ -44,6 +44,9 @@ export function applyBlockedByRules(record: NormalizedSignalRecord, minNaturalPe
   if (record.signal_confidence < minSignalConfidence) {
     addBlocked(record, 'below_min_signal_confidence', 'Below minimum signal confidence threshold.');
   }
+  if (record.source_role === 'secondary_confirmation' && !(record.provenance_sources ?? []).includes('afm_mar19')) {
+    addBlocked(record, 'secondary_source_no_primary_match', 'Secondary source record not corroborated by a primary MAR 19 filing; excluded from match-ready.');
+  }
 
   record.review_bucket = classifyReviewBucket(record);
   record.review_action = deriveReviewAction(record);
