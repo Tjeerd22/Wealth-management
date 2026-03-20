@@ -4,7 +4,7 @@ import { fetchCsvRows, parseCsv } from '../../src/utils/csv.js';
 import { ingestAfmMar19, AFM_MAR19_REQUIRED_COLUMNS } from '../../src/sources/afmMar19.js';
 import { ingestAfmSubstantialHoldings, AFM_SUBSTANTIAL_REQUIRED_COLUMNS } from '../../src/sources/afmSubstantialHoldings.js';
 import { normalizeRecord } from '../../src/normalize/normalizeRecord.js';
-import { logNormalizationHealth, validateRequiredColumns } from '../../src/normalize/sourceNormalization.js';
+import { logNormalizationHealth, validateRequiredColumns, validateSourceSchema } from '../../src/normalize/sourceNormalization.js';
 import { applyInstitutionalFilter } from '../../src/filters/institutionalFilter.js';
 import { scoreNaturalPersonConfidence } from '../../src/filters/personConfidence.js';
 import { dedupeSignals, dedupeSignalsWithStats } from '../../src/dedupe/dedupeSignals.js';
@@ -29,6 +29,8 @@ const mar19SemicolonFixtureUrl = new URL('../fixtures/afm_mar19_semicolon_sample
 const mar19SemicolonFixture = readFileSync(mar19SemicolonFixtureUrl, 'utf8');
 const substantialSemicolonFixtureUrl = new URL('../fixtures/afm_substantial_semicolon_sample.csv', import.meta.url);
 const substantialSemicolonFixture = readFileSync(substantialSemicolonFixtureUrl, 'utf8');
+const substantialMultirowFilingFixtureUrl = new URL('../fixtures/afm_substantial_multirow_filing.csv', import.meta.url);
+const substantialWithFooterFixtureUrl = new URL('../fixtures/afm_substantial_with_footer.csv', import.meta.url);
 
 describe('connector os dutch liquidity pipeline', () => {
   it('parses AFM-style semicolon CSV with BOM, whitespace, quotes, and empty lines', () => {
@@ -324,6 +326,38 @@ describe('connector os dutch liquidity pipeline', () => {
     // lookbackDays=3650 (10 years) — all fixture rows should be kept.
     const records = await ingestAfmSubstantialHoldings(substantialSemicolonFixtureUrl.pathname, 3650);
     expect(records).toHaveLength(3);
+  });
+
+  // --- Section 8: Filing collapse ---
+
+  it('collapses multi-component filing rows into one record per notifier+issuer+date', async () => {
+    // Fixture has 6 rows: ASML/Pieter Vos×3 on 2026-03-19 and Adyen/Jan de Vries×3 on 2026-03-18.
+    // After collapse, 2 records — one per distinct filing.
+    const records = await ingestAfmSubstantialHoldings(substantialMultirowFilingFixtureUrl.pathname, 3650);
+    expect(records).toHaveLength(2);
+  });
+
+  it('collapsed filing aggregates capital interest — max(before), min(after)', async () => {
+    // ASML group: before values [8.0, 5.0, 7.5] → max=8.0; after values [6.2, 4.5, 3.0] → min=3.0
+    const records = await ingestAfmSubstantialHoldings(substantialMultirowFilingFixtureUrl.pathname, 3650);
+    const asml = records.find((r) => r.company_name === 'ASML Holding NV');
+    expect(asml).toBeDefined();
+    expect(asml!.capital_interest_before).toBe(8.0);
+    expect(asml!.capital_interest_after).toBe(3.0);
+    expect(asml!.signal_type).toBe('substantial_holding_reduction');
+    expect(asml!.raw_source_payload_summary).toContain('filing_components=3');
+  });
+
+  it('strips footer rows before normalization — disclaimer and update rows do not become records', async () => {
+    // Fixture has 2 real data rows + 2 footer rows (Disclaimer CSV, Datum laatste update).
+    // After stripping, 2 records are produced.
+    const records = await ingestAfmSubstantialHoldings(substantialWithFooterFixtureUrl.pathname, 3650);
+    expect(records).toHaveLength(2);
+    // Verify no record has footer text in person_name or company_name.
+    for (const record of records) {
+      expect(record.person_name.toLowerCase()).not.toContain('disclaimer');
+      expect(record.person_name.toLowerCase()).not.toContain('datum laatste');
+    }
   });
 
   // --- Section 7: Source reliability policy (degraded mode) ---

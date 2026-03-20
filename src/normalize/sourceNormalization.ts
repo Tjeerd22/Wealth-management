@@ -40,7 +40,7 @@ export function validateRequiredColumns(
 
   if (missingColumns.length) {
     throw new Error(
-      `Source "${sourceName}" schema contract violated: missing required column(s): ${missingColumns.map((c) => JSON.stringify(c)).join(', ')}. ` +
+      `Source "${sourceName}" schema contract violated: missing required columns: ${missingColumns.map((c) => JSON.stringify(c)).join(', ')}. ` +
       `Present columns: ${[...presentColumns].map((c) => JSON.stringify(c)).join(', ')}.`,
     );
   }
@@ -49,6 +49,17 @@ export function validateRequiredColumns(
   if (unexpectedColumns.length) {
     logInfo(`source schema: unexpected extra columns in "${sourceName}"`, { unexpectedColumns });
   }
+}
+
+/**
+ * Alternative entry point for schema validation with a named-argument style.
+ * Equivalent to validateRequiredColumns — exposed for tests that prefer this call shape.
+ */
+export function validateSourceSchema(
+  rows: Record<string, string>[],
+  { sourceName, requiredColumns }: { sourceName: string; requiredColumns: string[] },
+): void {
+  validateRequiredColumns(rows, requiredColumns, sourceName);
 }
 
 /**
@@ -63,12 +74,12 @@ export function mapSourceField(row: Record<string, string>, aliases: string[]): 
   return '';
 }
 
-export function logNormalizationHealth(sourceName: string, rows: Record<string, string>[], records: NormalizedSignalRecord[]): void {
+export function logNormalizationHealth(sourceName: string, records: NormalizedSignalRecord[]): void {
   const companyNameCount = records.filter((record) => !isMissingIdentityValue(record.company_name)).length;
   const personNameCount = records.filter((record) => !isMissingIdentityValue(record.person_name)).length;
   const signalDateCount = records.filter((record) => !isMissingIdentityValue(record.signal_date)).length;
   const completeIdentityCount = records.filter((record) => hasCanonicalIdentity(record)).length;
-  const sampleRecords = records.slice(0, 3).map((record) => ({
+  const sampleNormalizedRecords = records.slice(0, 3).map((record) => ({
     record_id: record.record_id,
     person_name: record.person_name,
     person_last_name: record.person_last_name,
@@ -77,30 +88,21 @@ export function logNormalizationHealth(sourceName: string, rows: Record<string, 
     signal_type: record.signal_type,
   }));
 
-  return {
-    totalRows: records.length,
-    rowsWithCompanyName,
-    rowsWithPersonName,
-    rowsWithSignalDate,
-    rowsWithAllRequiredIdentityFields,
-    missingCompanyOrPersonRatio: records.length ? 1 - (records.filter((record) => !isMissingIdentityValue(record.company_name) && !isMissingIdentityValue(record.person_name)).length / records.length) : 0,
-    sampleNormalizedRecords,
-  };
-}
-
-export function logNormalizationHealth(sourceName: string, records: NormalizedSignalRecord[]): SourceNormalizationHealth {
-  const health = getNormalizationHealth(records);
-
   logInfo('source normalization health', {
     sourceName,
-    ...health,
+    totalRows: records.length,
+    rowsWithCompanyName: companyNameCount,
+    rowsWithPersonName: personNameCount,
+    rowsWithSignalDate: signalDateCount,
+    rowsWithAllRequiredIdentityFields: completeIdentityCount,
+    sampleNormalizedRecords,
   });
 
-  if (!rows.length) return;
+  if (!records.length) return;
 
-  const companyMissingRatio = 1 - companyNameCount / rows.length;
-  const personMissingRatio = 1 - personNameCount / rows.length;
-  const dateMissingRatio = 1 - signalDateCount / rows.length;
+  const companyMissingRatio = 1 - companyNameCount / records.length;
+  const personMissingRatio = 1 - personNameCount / records.length;
+  const dateMissingRatio = 1 - signalDateCount / records.length;
 
   const failures: string[] = [];
   if (companyMissingRatio >= FIELD_MISSING_FAIL_RATIO) {
@@ -116,12 +118,10 @@ export function logNormalizationHealth(sourceName: string, records: NormalizedSi
   if (failures.length) {
     logWarn('source normalization health failed', {
       sourceName,
-      totalRows: rows.length,
+      totalRows: records.length,
       failures,
       threshold: FIELD_MISSING_FAIL_RATIO,
     });
     throw new Error(`Normalization health check failed for ${sourceName}: ${failures.join('; ')}.`);
   }
-
-  return health;
 }
