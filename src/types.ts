@@ -13,6 +13,24 @@ export type PersonType = 'unknown' | 'natural_person' | 'legal_entity' | 'family
 export type SourceRole = 'primary' | 'secondary_confirmation';
 
 /**
+ * Direction of the underlying transaction or position change.
+ *
+ * - buy:     person acquired or increased a stake / received securities
+ * - sell:    person disposed of or reduced a stake
+ * - unclear: direction cannot be determined from the available source data
+ */
+export type SignalDirection = 'buy' | 'sell' | 'unclear';
+
+/**
+ * How explicitly the signal data supports the inferred direction/event.
+ *
+ * - explicit: source data directly states the direction or event type
+ * - inferred: direction is derived from context (e.g. a PDMR filing date alone)
+ * - unclear:  insufficient data to classify
+ */
+export type SignalClarity = 'explicit' | 'inferred' | 'unclear';
+
+/**
  * Explicit run state. Exactly one of these is reported in RUN_SUMMARY.
  *
  * - succeeded: all enabled sources fetched successfully, valid outputs written.
@@ -153,6 +171,10 @@ export interface NormalizedSignalRecord {
   signal_type: string;
   signal_date: string;
   signal_detail: string;
+  signal_direction: SignalDirection;
+  signal_clarity: SignalClarity;
+  /** 0–1. Higher values indicate a more likely liquid wealth event. */
+  liquidity_relevance: number;
   signal_value_estimate: number | null;
   signal_currency: string;
   capital_interest_before: number | null;
@@ -197,6 +219,9 @@ export interface ReviewRecord {
   signal_type: string;
   signal_date: string;
   signal_detail: string;
+  signal_direction: SignalDirection;
+  signal_clarity: SignalClarity;
+  liquidity_relevance: number;
   source_name: string;
   source_role: SourceRole;
   source_url: string;
