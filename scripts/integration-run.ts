@@ -13,6 +13,7 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { ingestAfmMar19 } from '../src/sources/afmMar19.js';
 import { ingestAfmSubstantialHoldings } from '../src/sources/afmSubstantialHoldings.js';
 import { dedupeSignalsWithStats } from '../src/dedupe/dedupeSignals.js';
@@ -274,19 +275,30 @@ async function main(): Promise<void> {
 
   const enrichErrors: string[] = [];
 
+  // Pass 1: fast pre-scoring (no I/O) — sets NPC so Exa delta can add to it
   for (const record of records) {
     applyInstitutionalFilter(record);
     record.natural_person_confidence = scoreNaturalPersonConfidence(record);
+  }
 
-    if (exaEnabled) {
-      try {
-        await enrichRecord(record, pipelineInput);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        enrichErrors.push(`${record.record_id}: ${msg}`);
-      }
+  // Pass 2: parallel Exa enrichment in batches of 10 (adds NPC delta + sets enrichment context)
+  if (exaEnabled) {
+    const BATCH = 10;
+    for (let i = 0; i < records.length; i += BATCH) {
+      await Promise.allSettled(
+        records.slice(i, i + BATCH).map(async (r) => {
+          try {
+            await enrichRecord(r, pipelineInput);
+          } catch (e) {
+            enrichErrors.push(`${r.record_id}: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }),
+      );
     }
+  }
 
+  // Pass 3: complete scoring (uses enrichment_context / role set by Exa)
+  for (const record of records) {
     record.nl_relevance_score = scoreNlRelevance(record);
     record.issuer_desirability_score = scoreIssuerDesirability(record);
     scoreSignal(record, LOOKBACK_DAYS);
@@ -599,6 +611,49 @@ async function main(): Promise<void> {
       console.log(`  • ${fix}`);
     }
   }
+
+  // ── CSV EXPORT ────────────────────────────────────────────────────────────
+
+  section('CSV EXPORT');
+
+  const csvHeaders = [
+    'record_id', 'person_name', 'company_name', 'signal_date', 'signal_type',
+    'signal_direction', 'natural_person_confidence', 'signal_confidence',
+    'wealth_relevance_score', 'nl_relevance_score', 'issuer_desirability_score',
+    'review_bucket', 'shortlist_eligible', 'match_ready', 'institutional_risk',
+    'blocked_by', 'context_summary', 'evidence_reference', 'role', 'company_country',
+  ];
+
+  function csvEscape(v: unknown): string {
+    const s = v == null ? '' : String(v);
+    return s.includes(',') || s.includes('"') || s.includes('\n')
+      ? `"${s.replace(/"/g, '""')}"`
+      : s;
+  }
+
+  const rankedAll = rankReviewRecords(records);
+  const csvRows = [
+    csvHeaders.join(','),
+    ...rankedAll.map((r) =>
+      [
+        r.record_id, r.person_name, r.company_name, r.signal_date, r.signal_type,
+        r.signal_direction,
+        r.natural_person_confidence.toFixed(3), r.signal_confidence.toFixed(3),
+        r.wealth_relevance_score.toFixed(3), r.nl_relevance_score.toFixed(3),
+        r.issuer_desirability_score.toFixed(3),
+        r.review_bucket ?? '', r.shortlist_eligible ? 'true' : 'false',
+        r.match_ready ? 'true' : 'false', r.institutional_risk ?? '',
+        (r.blocked_by ?? []).join('|'), r.context_summary ?? '',
+        r.evidence_reference ?? '', r.role ?? '', r.company_country ?? '',
+      ].map(csvEscape).join(','),
+    ),
+  ];
+
+  const csvPath = path.resolve(__dirname, `../output/pipeline-results-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.csv`);
+  mkdirSync(path.dirname(csvPath), { recursive: true });
+  writeFileSync(csvPath, csvRows.join('\n'), 'utf8');
+  console.log(`\n  CSV written: ${csvPath}`);
+  console.log(`  Rows: ${rankedAll.length} records`);
 
   // ── Summary ───────────────────────────────────────────────────────────────
 
