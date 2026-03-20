@@ -39,6 +39,10 @@ export function normalizeRecord(input: NormalizeInput): NormalizedSignalRecord {
     role: input.role ?? '',
     company_name: normalizedCompanyName,
     company_domain: '',
+    // Hardcoded scope assumption: this pipeline only ingests Dutch issuers (AFM sources).
+    // This is not a per-record inference; it makes the 0.4 issuerRelevance fallback in
+    // scoreSignal.ts unreachable for all current sources. If non-Dutch sources are ever
+    // added, this field must be derived from source data rather than set here.
     company_country: 'Netherlands',
     signal_type: input.signalType,
     signal_date: signalDate,

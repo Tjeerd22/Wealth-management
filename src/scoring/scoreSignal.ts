@@ -41,6 +41,12 @@ export function scoreSignal(record: NormalizedSignalRecord, lookbackDays: number
   if (record.signal_type.includes('unclear')) {
     record.signal_confidence = Math.min(record.signal_confidence, 0.48);
   }
+  // Consolidated cap for all unclear/unconfirmed types. Previously split across scoreSignal
+  // and signalGates.ts. For 'unclear' the 0.48 cap above is tighter and always wins;
+  // for 'unconfirmed' (pdmr) this 0.58 is the operative ceiling (0.58 < 0.66–0.74).
+  if (record.signal_type.includes('unclear') || record.signal_type.includes('unconfirmed')) {
+    record.signal_confidence = Math.min(record.signal_confidence, 0.58);
+  }
   if (record.institutional_risk === 'high') {
     record.signal_confidence = Math.min(record.signal_confidence, 0.28);
   }
