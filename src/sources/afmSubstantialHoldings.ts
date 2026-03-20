@@ -221,6 +221,7 @@ export async function ingestAfmSubstantialHoldings(
         ? `Substantial holding reduced from ${before}% to ${after}%.`
         : 'Substantial holding threshold crossed, but reduction direction is unclear from export.',
       sourceName: 'afm_substantial',
+      sourceRole: 'secondary_confirmation',
       sourceUrl: url,
       evidenceType: 'afm_csv_holding_notice',
       evidenceStrength: reduction ? 0.82 : 0.55,

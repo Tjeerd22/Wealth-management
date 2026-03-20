@@ -14,6 +14,7 @@ export function toReviewRecord(record: NormalizedSignalRecord): ReviewRecord {
     signal_date: record.signal_date,
     signal_detail: record.signal_detail,
     source_name: record.source_name,
+    source_role: record.source_role,
     source_url: record.source_url,
     natural_person_confidence: record.natural_person_confidence,
     nl_relevance_score: record.nl_relevance_score,

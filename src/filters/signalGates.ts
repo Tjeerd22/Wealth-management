@@ -23,6 +23,9 @@ export function applySignalGates(record: NormalizedSignalRecord, input: ActorInp
   if (record.signal_confidence < input.minSignalConfidence) {
     record.match_ready = false;
   }
+  if (record.source_role === 'secondary_confirmation' && !(record.provenance_sources ?? []).includes('afm_mar19')) {
+    record.match_ready = false;
+  }
 
   applyBlockedByRules(record, input.minNaturalPersonConfidence, input.minSignalConfidence);
   return record;

@@ -1,6 +1,18 @@
 export type PersonType = 'unknown' | 'natural_person' | 'legal_entity' | 'family_holding';
 
 /**
+ * Role of the source that produced this record.
+ *
+ * - primary: the record originated from a source that drives candidate generation
+ *   (AFM MAR 19). A primary record can reach match-ready without corroboration.
+ * - secondary_confirmation: the record originated from a source used only for
+ *   enrichment and confirmation (AFM substantial holdings). A secondary record
+ *   cannot reach match-ready unless it has been merged with a primary record
+ *   (i.e., provenance_sources includes 'afm_mar19').
+ */
+export type SourceRole = 'primary' | 'secondary_confirmation';
+
+/**
  * Explicit run state. Exactly one of these is reported in RUN_SUMMARY.
  *
  * - succeeded: all enabled sources fetched successfully, valid outputs written.
@@ -33,7 +45,8 @@ export type BlockedReason =
   | 'low_natural_person_confidence'
   | 'institutional_risk'
   | 'below_min_signal_confidence'
-  | 'strict_substantial_holder_gate';
+  | 'strict_substantial_holder_gate'
+  | 'secondary_source_no_primary_match';
 
 export interface ActorInput {
   runAfmMar19: boolean;
@@ -146,6 +159,7 @@ export interface NormalizedSignalRecord {
   capital_interest_after: number | null;
   transaction_value: number | null;
   source_name: string;
+  source_role: SourceRole;
   source_url: string;
   evidence_type: string;
   evidence_strength: number;
@@ -184,6 +198,7 @@ export interface ReviewRecord {
   signal_date: string;
   signal_detail: string;
   source_name: string;
+  source_role: SourceRole;
   source_url: string;
   natural_person_confidence: number;
   nl_relevance_score: number;

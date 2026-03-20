@@ -360,6 +360,82 @@ describe('connector os dutch liquidity pipeline', () => {
     }
   });
 
+  // --- Section 9: Source role differentiation ---
+
+  it('MAR 19 ingest produces records with source_role primary', async () => {
+    const records = await ingestAfmMar19(mar19SemicolonFixtureUrl.pathname);
+    expect(records.every((r) => r.source_role === 'primary')).toBe(true);
+  });
+
+  it('substantial holdings ingest produces records with source_role secondary_confirmation', async () => {
+    const records = await ingestAfmSubstantialHoldings(substantialSemicolonFixtureUrl.pathname, 3650);
+    expect(records.every((r) => r.source_role === 'secondary_confirmation')).toBe(true);
+  });
+
+  it('standalone secondary record is blocked from match-ready with secondary_source_no_primary_match', () => {
+    const record = normalizeRecord({
+      personName: 'Pieter Vos',
+      companyName: 'ASML Holding NV',
+      signalDate: '2026-03-19',
+      signalType: 'substantial_holding_reduction',
+      signalDetail: 'Reduction 8% → 3%',
+      sourceName: 'afm_substantial',
+      sourceRole: 'secondary_confirmation',
+      sourceUrl: 'fixture',
+      evidenceType: 'afm_csv_holding_notice',
+      evidenceStrength: 0.82,
+      rawSummary: 'fixture',
+      capitalInterestBefore: 8.0,
+      capitalInterestAfter: 3.0,
+    });
+    // Provenance has only afm_substantial — no MAR 19 corroboration.
+    record.role = 'Executive Director';
+    record.company_domain = 'asml.com';
+    record.enrichment_context = 'Board biography found';
+    record.person_type = 'natural_person';
+    record.natural_person_confidence = scoreNaturalPersonConfidence(record);
+    record.nl_relevance_score = scoreNlRelevance(record);
+    record.issuer_desirability_score = scoreIssuerDesirability(record);
+    scoreSignal(record, 45);
+    record.match_ready = true;
+    applySignalGates(record, defaultInput);
+
+    expect(record.match_ready).toBe(false);
+    expect(record.blocked_by).toContain('secondary_source_no_primary_match');
+  });
+
+  it('secondary record merged with MAR 19 provenance is not blocked by secondary gate', () => {
+    const record = normalizeRecord({
+      personName: 'Pieter Vos',
+      companyName: 'ASML Holding NV',
+      signalDate: '2026-03-19',
+      signalType: 'substantial_holding_reduction',
+      signalDetail: 'Reduction 8% → 3%',
+      sourceName: 'afm_substantial',
+      sourceRole: 'secondary_confirmation',
+      sourceUrl: 'fixture',
+      evidenceType: 'afm_csv_holding_notice',
+      evidenceStrength: 0.82,
+      rawSummary: 'fixture',
+      capitalInterestBefore: 8.0,
+      capitalInterestAfter: 3.0,
+    });
+    // Simulate dedupe merge: MAR 19 provenance added.
+    record.provenance_sources = ['afm_substantial', 'afm_mar19'];
+    record.role = 'Executive Director';
+    record.company_domain = 'asml.com';
+    record.enrichment_context = 'Board biography found';
+    record.person_type = 'natural_person';
+    record.natural_person_confidence = scoreNaturalPersonConfidence(record);
+    record.nl_relevance_score = scoreNlRelevance(record);
+    record.issuer_desirability_score = scoreIssuerDesirability(record);
+    scoreSignal(record, 45);
+    record.match_ready = true;
+    applySignalGates(record, defaultInput);
+
+    expect(record.blocked_by).not.toContain('secondary_source_no_primary_match');
+  });
+
   // --- Section 7: Source reliability policy (degraded mode) ---
 
   it('AFM substantial holdings 504 triggers degraded mode — run continues with MAR 19 only', async () => {
