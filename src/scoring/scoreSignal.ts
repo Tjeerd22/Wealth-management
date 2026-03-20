@@ -29,12 +29,23 @@ export function scoreSignal(record: NormalizedSignalRecord, lookbackDays: number
     + (issuerRelevance * 0.03)
     + (contextQuality * 0.03);
   record.signal_confidence = clamp01(score);
+  record.wealth_relevance_score = clamp01(
+    (record.liquidity_relevance * 0.4)
+    + (record.natural_person_confidence * 0.35)
+    + (record.issuer_desirability_score * 0.25),
+  );
 
   if (record.signal_type === 'pdmr_transaction_unconfirmed') {
     record.signal_confidence = Math.min(record.signal_confidence, 0.74 - ((1 - nlRelevance) * 0.08));
   }
   if (record.signal_type.includes('unclear')) {
     record.signal_confidence = Math.min(record.signal_confidence, 0.48);
+  }
+  // Consolidated cap for all unclear/unconfirmed types. Previously split across scoreSignal
+  // and signalGates.ts. For 'unclear' the 0.48 cap above is tighter and always wins;
+  // for 'unconfirmed' (pdmr) this 0.58 is the operative ceiling (0.58 < 0.66–0.74).
+  if (record.signal_type.includes('unclear') || record.signal_type.includes('unconfirmed')) {
+    record.signal_confidence = Math.min(record.signal_confidence, 0.58);
   }
   if (record.institutional_risk === 'high') {
     record.signal_confidence = Math.min(record.signal_confidence, 0.28);

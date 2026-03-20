@@ -61,9 +61,10 @@ function mergeRecords(base: NormalizedSignalRecord, candidate: NormalizedSignalR
   }
   base.evidence_strength = Math.max(base.evidence_strength, candidate.evidence_strength);
   base.natural_person_confidence = Math.max(base.natural_person_confidence, candidate.natural_person_confidence);
-  base.signal_confidence = Math.max(base.signal_confidence, candidate.signal_confidence);
-  base.nl_relevance_score = Math.max(base.nl_relevance_score, candidate.nl_relevance_score);
-  base.issuer_desirability_score = Math.max(base.issuer_desirability_score, candidate.issuer_desirability_score);
+  // signal_confidence, nl_relevance_score and issuer_desirability_score are not merged here:
+  // dedupe runs before scoring, so these fields hold only their normalizeRecord() initial
+  // values (0, 0.5 and 0.5 respectively) for every candidate — Math.max would be a no-op.
+  // Post-dedupe scoring in the main pipeline assigns the final values.
   base.review_priority_score = Math.max(base.review_priority_score, candidate.review_priority_score);
   base.role ||= candidate.role;
   base.company_domain ||= candidate.company_domain;

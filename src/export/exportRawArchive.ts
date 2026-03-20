@@ -10,6 +10,7 @@ const CONFIRMATION_SOURCES_CAP = 10;
 const SUMMARY_MAX_CHARS = 4_000;
 const CONTEXT_MAX_CHARS = 4_000;
 const SIGNAL_DETAIL_MAX_CHARS = 1_500;
+const CONTEXT_SUMMARY_MAX_CHARS = 1_500;
 const NAME_MAX_CHARS = 512;
 const ROLE_MAX_CHARS = 512;
 const OVERSIZED_AUDIT_PREFIX = 'RAW_ARCHIVE_AUDIT_';
@@ -77,6 +78,7 @@ export async function makeRawArchiveItemSizeSafe(record: NormalizedSignalRecord)
     confirmation_summary: truncateText(record.confirmation_summary, SUMMARY_MAX_CHARS),
     enrichment_context: truncateText(record.enrichment_context ?? '', CONTEXT_MAX_CHARS),
     signal_detail: truncateText(record.signal_detail, SIGNAL_DETAIL_MAX_CHARS),
+    context_summary: truncateText(record.context_summary, CONTEXT_SUMMARY_MAX_CHARS),
   };
 
   let sizeBytes = estimateSerializedSizeBytes(compactedRecord);
@@ -97,6 +99,7 @@ export async function makeRawArchiveItemSizeSafe(record: NormalizedSignalRecord)
     compactedRecord.confirmation_summary = truncateText(compactedRecord.confirmation_summary, 512);
     compactedRecord.enrichment_context = truncateText(compactedRecord.enrichment_context ?? '', 512);
     compactedRecord.signal_detail = truncateText(compactedRecord.signal_detail, 512);
+    compactedRecord.context_summary = truncateText(compactedRecord.context_summary, 512);
     compactedRecord.notes.push(`Oversized audit detail moved to KV store key ${auditKey}.`);
     compacted = true;
     sizeBytes = estimateSerializedSizeBytes(compactedRecord);

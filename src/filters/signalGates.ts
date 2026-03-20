@@ -11,8 +11,8 @@ export function applySignalGates(record: NormalizedSignalRecord, input: ActorInp
   if (record.institutional_risk === 'high' && record.natural_person_confidence < 0.8) {
     record.match_ready = false;
   }
+  // Confidence cap for unclear/unconfirmed types is handled in scoreSignal.ts.
   if (record.signal_type.includes('unclear') || record.signal_type.includes('unconfirmed')) {
-    record.signal_confidence = Math.min(record.signal_confidence, 0.58);
     record.match_ready = false;
   }
   if (!hasVerifiedContext) {
