@@ -1,5 +1,5 @@
-﻿NotificationDate ; Issuer ; NotifyingParty ; CapitalInterestBefore ; CapitalInterestAfter
+﻿Datum meldingsplicht ; Uitgevende instelling ; Meldingsplichtige ; Kvk-nr ; Plaats ; CapitalInterestBefore ; CapitalInterestAfter
 
-2026-03-19 ; "Pharming Group N.V." ; "Bank of America Corporation" ; 10,5% ; 9,8%
-2026-03-18 ; "CM.com N.V." ; "Eva Jansen" ; 6,2% ; 4,8%
-2026-03-17 ; "ARCADIS N.V." ; "Stichting Administratiekantoor Example" ; 3,1% ; 3,1%
+2026-03-19 ; "Pharming Group N.V." ; "Bank Of America Corporation" ; 12345678 ; Amsterdam ; 10.0 ; 8.0
+2026-03-18 ; "ASML Holding NV" ; "Pieter Vos" ; 87654321 ; Eindhoven ; 6.2 ; 4.8
+2026-03-17 ; "Adyen NV" ; "Jan de Vries" ; 11223344 ; Rotterdam ; 12.5 ; 9.0

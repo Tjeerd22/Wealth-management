@@ -14,7 +14,7 @@ import { exportReviewDataset, rankReviewRecords } from './export/exportReviewDat
 import { exportMatchReady } from './export/exportMatchReady.js';
 import { scoreNlRelevance } from './scoring/scoreNlRelevance.js';
 import { scoreIssuerDesirability } from './scoring/scoreIssuerDesirability.js';
-import { ActorInput, NormalizedSignalRecord, RunSummary } from './types.js';
+import { ActorInput, FinalRunState, NormalizedSignalRecord, RunSummary, SourceFetchStatus } from './types.js';
 import { logInfo, logWarn } from './utils/logging.js';
 import { confirmContextForTopReviewRecords } from './enrich/confirmContextForTopReviewRecords.js';
 
@@ -36,14 +36,6 @@ interface NormalizedRuntimeConfig {
   exaFreshnessMaxAgeHours: number;
   debug: boolean;
   hasExaApiKey: boolean;
-}
-
-interface OutputWriteStats {
-  defaultDatasetItems: number;
-  reviewItems: number;
-  matchReadyItems: number;
-  kvRunSummaryWritten: boolean;
-  kvInputSchemaWritten: boolean;
 }
 
 const RUNTIME_LOG_PREFIX = '[RUNTIME]';
@@ -149,10 +141,19 @@ export function appendRecords(target: NormalizedSignalRecord[], source: Normaliz
   return target.length;
 }
 
+function makeEmptySourceStatus(enabled: boolean): SourceFetchStatus {
+  return { enabled, status: enabled ? 'failed' : 'skipped', row_count: 0, retries_attempted: 0, elapsed_ms: 0 };
+}
+
 export async function run(): Promise<void> {
   let actorInitialized = false;
-  let success = false;
-  let outputsWritten = false;
+  let finalRunState: FinalRunState = 'failed';
+  let degradedRun = false;
+
+  const sourceStatus: RunSummary['source_status'] = {
+    afm_mar19: makeEmptySourceStatus(false),
+    afm_substantial: makeEmptySourceStatus(false),
+  };
 
   try {
     await Actor.init();
@@ -178,40 +179,73 @@ export async function run(): Promise<void> {
       throw new Error('Both AFM source URLs are empty after normalization.');
     }
 
+    sourceStatus.afm_mar19 = makeEmptySourceStatus(input.runAfmMar19);
+    sourceStatus.afm_substantial = makeEmptySourceStatus(input.runAfmSubstantialHoldings);
+
     const sourceStats = { afm_mar19: 0, afm_substantial: 0, exa_enriched: 0 };
-    const outputWriteStats: OutputWriteStats = {
-      defaultDatasetItems: 0,
-      reviewItems: 0,
-      matchReadyItems: 0,
-      kvRunSummaryWritten: false,
-      kvInputSchemaWritten: false,
-    };
     let records: NormalizedSignalRecord[] = [];
 
+    // --- MAR 19 fetch ---
+    // Policy: MAR 19 failure is fatal. It is the primary source.
     if (input.runAfmMar19) {
       stageLog('AFM MAR 19 fetch starting', { url: input.afmMar19CsvUrl });
-      const mar19 = await ingestAfmMar19(input.afmMar19CsvUrl || defaultInput.afmMar19CsvUrl);
-      sourceStats.afm_mar19 = mar19.length;
-      stageLog('AFM MAR 19 rows loaded', { rows: mar19.length });
-      if (!mar19.length) stageWarn('AFM MAR 19 fetch returned empty rows unexpectedly', { url: input.afmMar19CsvUrl });
-      stageLog('starting merge of source records', { source: 'afm_mar19', incomingRows: mar19.length, recordsBeforeMerge: records.length });
-      appendRecords(records, mar19);
-      stageLog('merge completed', { source: 'afm_mar19', recordsAfterMerge: records.length });
+      const t0 = Date.now();
+      try {
+        const mar19 = await ingestAfmMar19(input.afmMar19CsvUrl || defaultInput.afmMar19CsvUrl);
+        sourceStatus.afm_mar19.status = 'ok';
+        sourceStatus.afm_mar19.row_count = mar19.length;
+        sourceStatus.afm_mar19.elapsed_ms = Date.now() - t0;
+        sourceStats.afm_mar19 = mar19.length;
+        stageLog('AFM MAR 19 rows loaded', { rows: mar19.length });
+        if (!mar19.length) stageWarn('AFM MAR 19 fetch returned empty rows unexpectedly', { url: input.afmMar19CsvUrl });
+        appendRecords(records, mar19);
+      } catch (error) {
+        sourceStatus.afm_mar19.status = 'failed';
+        sourceStatus.afm_mar19.elapsed_ms = Date.now() - t0;
+        sourceStatus.afm_mar19.error = error instanceof Error ? error.message : String(error);
+        stageError('AFM MAR 19 fetch failed — run is fatal', error);
+        // MAR 19 failure is not recoverable as degraded. Both-failed is also fatal.
+        throw error;
+      }
     }
 
+    // --- Substantial holdings fetch ---
+    // Policy: failure after retries enters degraded mode if MAR 19 succeeded.
     if (input.runAfmSubstantialHoldings) {
       stageLog('AFM substantial holdings fetch starting', { url: input.afmSubstantialHoldingsCsvUrl });
-      const substantial = await ingestAfmSubstantialHoldings(input.afmSubstantialHoldingsCsvUrl || defaultInput.afmSubstantialHoldingsCsvUrl);
-      sourceStats.afm_substantial = substantial.length;
-      stageLog('AFM substantial rows loaded', { rows: substantial.length });
-      if (!substantial.length) stageWarn('AFM substantial holdings fetch returned empty rows unexpectedly', { url: input.afmSubstantialHoldingsCsvUrl });
-      stageLog('starting merge of source records', { source: 'afm_substantial', incomingRows: substantial.length, recordsBeforeMerge: records.length });
-      appendRecords(records, substantial);
-      stageLog('merge completed', { source: 'afm_substantial', recordsAfterMerge: records.length });
+      const t0 = Date.now();
+      try {
+        const substantial = await ingestAfmSubstantialHoldings(
+          input.afmSubstantialHoldingsCsvUrl || defaultInput.afmSubstantialHoldingsCsvUrl,
+          input.lookbackDays,
+        );
+        sourceStatus.afm_substantial.status = 'ok';
+        sourceStatus.afm_substantial.row_count = substantial.length;
+        sourceStatus.afm_substantial.elapsed_ms = Date.now() - t0;
+        sourceStats.afm_substantial = substantial.length;
+        stageLog('AFM substantial rows loaded', { rows: substantial.length });
+        if (!substantial.length) stageWarn('AFM substantial holdings fetch returned empty rows', { url: input.afmSubstantialHoldingsCsvUrl });
+        appendRecords(records, substantial);
+      } catch (error) {
+        sourceStatus.afm_substantial.status = 'degraded';
+        sourceStatus.afm_substantial.elapsed_ms = Date.now() - t0;
+        sourceStatus.afm_substantial.error = error instanceof Error ? error.message : String(error);
+
+        // If MAR 19 is disabled (not run) and substantial fails, no source succeeded — fail.
+        if (!input.runAfmMar19) {
+          stageError('AFM substantial holdings failed and MAR 19 is disabled — run is fatal', error);
+          throw error;
+        }
+
+        // MAR 19 succeeded: enter degraded mode and continue.
+        degradedRun = true;
+        stageWarn('AFM substantial holdings fetch failed after retries — entering degraded mode (MAR 19 only)', {
+          error: sourceStatus.afm_substantial.error,
+          degradedRun: true,
+        });
+      }
     }
 
-    stageLog('normalization started', { records: records.length });
-    stageLog('normalization completed', { records: records.length });
     stageLog('dedupe started', { recordsBeforeDedupe: records.length });
     const dedupeResult = dedupeSignalsWithStats(records);
     records = dedupeResult.records;
@@ -256,23 +290,53 @@ export async function run(): Promise<void> {
     });
 
     const rawArchiveStats = await exportRawArchive(records);
-    outputWriteStats.defaultDatasetItems = rawArchiveStats.itemsWritten;
     stageLog('raw archive export completed', rawArchiveStats);
 
     await confirmContextForTopReviewRecords(rankReviewRecords(postFilterRecords), input);
     const review = await exportReviewDataset(postFilterRecords, input.maxReviewRecords);
-    outputWriteStats.reviewItems = review.length;
     if (!review.length) stageWarn('review export wrote zero records', { maxReviewRecords: input.maxReviewRecords });
     const matchReady = await exportMatchReady(postFilterRecords, input.maxMatchReadyRecords);
-    outputWriteStats.matchReadyItems = matchReady.length;
-    if (!matchReady.length) stageWarn('match-ready export wrote zero records', { maxMatchReadyRecords: input.maxMatchReadyRecords });
+    if (!matchReady.length) stageWarn('match-ready export wrote zero records — likely all records blocked by signal gates', {
+      maxMatchReadyRecords: input.maxMatchReadyRecords,
+      runExaConfirmation: runtimeConfig.runExaConfirmation,
+      hasExaApiKey: runtimeConfig.hasExaApiKey,
+      hint: runtimeConfig.hasExaApiKey ? undefined : 'match_ready requires enrichment_context or role; enable Exa or ensure source provides role data',
+    });
+
     const review_bucket_stats = {
       A: postFilterRecords.filter((record) => record.review_bucket === 'A').length,
       B: postFilterRecords.filter((record) => record.review_bucket === 'B').length,
       C: postFilterRecords.filter((record) => record.review_bucket === 'C').length,
     };
 
+    const outputsWritten = {
+      default_dataset_items: rawArchiveStats.itemsWritten,
+      review_items: review.length,
+      match_ready_items: matchReady.length,
+      kv_run_summary: false,
+      kv_input_schema: false,
+    };
+
+    // A run with no dataset output is suspicious but not always wrong
+    // (e.g. all records within lookback window were institutions).
+    // Warn but do not fail — the summary will show the state truthfully.
+    if (rawArchiveStats.itemsWritten === 0) {
+      stageWarn('raw archive wrote zero items — pipeline produced no records', {
+        degradedRun,
+        postFilterRecords: postFilterRecords.length,
+      });
+    }
+
+    finalRunState = degradedRun ? 'degraded' : 'succeeded';
+
+    if (!input.exaApiKey) {
+      logInfo('Exa confirmation disabled', { reason: 'No input.exaApiKey or EXA_API_KEY was provided.' });
+    }
+
     const summary: RunSummary = {
+      final_run_state: finalRunState,
+      degraded_run: degradedRun,
+      source_status: sourceStatus,
       raw_records: records.length,
       post_filter_records: postFilterRecords.length,
       review_records: review.length,
@@ -281,41 +345,46 @@ export async function run(): Promise<void> {
       low_confidence_records: lowConfidenceRecords,
       source_stats: sourceStats,
       review_bucket_stats,
+      outputs_written: outputsWritten,
     };
 
-    if (!input.exaApiKey) {
-      logInfo('Exa confirmation disabled', { reason: 'No input.exaApiKey or EXA_API_KEY was provided.' });
-    }
-
     logInfo('Run summary', summary);
+
     await Actor.setValue('RUN_SUMMARY', summary);
-    outputWriteStats.kvRunSummaryWritten = true;
+    outputsWritten.kv_run_summary = true;
     await Actor.setValue('INPUT_SCHEMA', (await import('./inputSchema.js')).inputSchema);
-    outputWriteStats.kvInputSchemaWritten = true;
+    outputsWritten.kv_input_schema = true;
 
-    outputsWritten = outputWriteStats.defaultDatasetItems > 0
-      || outputWriteStats.reviewItems > 0
-      || outputWriteStats.matchReadyItems > 0
-      || outputWriteStats.kvRunSummaryWritten
-      || outputWriteStats.kvInputSchemaWritten;
+    stageLog('outputs written', outputsWritten);
+    stageLog('actor exiting successfully', { finalRunState });
+  } catch (error) {
+    finalRunState = 'failed';
+    stageError('actor failed', error);
 
-    stageLog('outputs written', outputWriteStats);
-
-    if (!outputsWritten) {
-      stageWarn('pipeline returned without writing outputs', outputWriteStats);
-      throw new Error('Pipeline returned without writing outputs.');
+    // Attempt to write a failure summary so the run state is observable in KV.
+    if (actorInitialized) {
+      try {
+        const failureSummary: Partial<RunSummary> = {
+          final_run_state: 'failed',
+          degraded_run: false,
+          source_status: sourceStatus,
+        };
+        await Actor.setValue('RUN_SUMMARY', failureSummary);
+      } catch {
+        // Best-effort only — do not suppress the original error.
+      }
     }
 
-    success = true;
-    stageLog('actor exiting successfully');
-  } catch (error) {
-    stageError('actor failed', error);
     throw error;
   } finally {
-    if (actorInitialized && !success && !outputsWritten) {
-      stageWarn('pipeline returned without writing outputs', { actorInitialized, success, outputsWritten });
+    if (actorInitialized) {
+      if (finalRunState !== 'failed') {
+        // Clean shutdown for succeeded/degraded runs.
+        // For failed runs, the re-thrown error propagates from catch and Apify
+        // detects the non-zero process exit from the unhandled rejection.
+        await Actor.exit();
+      }
     }
-    if (actorInitialized) await Actor.exit();
   }
 }
 

@@ -1,9 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { parse } from 'csv-parse/sync';
-import { logInfo } from './logging.js';
+import { logInfo, logWarn } from './logging.js';
 
 const CSV_PREVIEW_LENGTH = 200;
 const DELIMITER_CANDIDATES = [';', ','] as const;
+
+// 45-second timeout per attempt. AFM endpoints are slow but not indefinitely slow.
+const FETCH_TIMEOUT_MS = 45_000;
+// 256 MB hard cap. The substantial holdings file is ~95 MB; anything larger is anomalous.
+const FETCH_MAX_BYTES = 256 * 1024 * 1024;
 
 type CsvDelimiter = (typeof DELIMITER_CANDIDATES)[number];
 
@@ -49,15 +54,74 @@ function parseWithDelimiter(body: string, delimiter: CsvDelimiter): Record<strin
   });
 }
 
+async function fetchBodyWithTimeout(url: string): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      const error = new Error(`HTTP ${response.status} fetching ${url}`);
+      (error as NodeJS.ErrnoException).code = String(response.status);
+      throw error;
+    }
+    // Stream body with size guard to avoid unbounded memory use.
+    const reader = response.body?.getReader();
+    if (!reader) {
+      return response.text();
+    }
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > FETCH_MAX_BYTES) {
+        reader.cancel();
+        throw new Error(`Response from ${url} exceeds max body size of ${FETCH_MAX_BYTES} bytes — aborting.`);
+      }
+      chunks.push(value);
+    }
+    return Buffer.concat(chunks).toString('utf8');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * fetchWithRetry wraps fetchBodyWithTimeout with exponential-backoff retries.
+ * Only retries on 5xx status codes and network/timeout errors.
+ * 4xx errors (404, 403) are not retried — they indicate a configuration problem.
+ *
+ * @param maxRetries number of additional attempts after the first (0 = no retry)
+ */
+export async function fetchWithRetry(url: string, maxRetries: number, sourceName: string): Promise<string> {
+  let lastError: Error = new Error(`fetchWithRetry: no attempt made for ${sourceName}`);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      const baseDelayMs = Math.pow(2, attempt) * 1000;
+      const jitterMs = Math.floor(Math.random() * 500);
+      const delayMs = baseDelayMs + jitterMs;
+      logWarn(`source fetch retry`, { sourceName, attempt, delayMs, previousError: lastError.message });
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    try {
+      return await fetchBodyWithTimeout(url);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const statusCode = Number((error as NodeJS.ErrnoException).code ?? 0);
+      // Do not retry on 4xx — these are configuration/auth errors not transient.
+      if (statusCode >= 400 && statusCode < 500) throw lastError;
+    }
+  }
+  throw lastError;
+}
+
 export async function fetchCsvRows(url: string, options: ParseCsvOptions = {}): Promise<Record<string, string>[]> {
   const sourceName = options.sourceName ?? url;
   const isLocalPath = !/^https?:\/\//i.test(url);
   const body = isLocalPath
     ? await readFile(url.replace(/^file:\/\//i, ''), 'utf8')
-    : await fetch(url).then(async (response) => {
-      if (!response.ok) throw new Error(`Failed to fetch CSV from ${url}: ${response.status}`);
-      return response.text();
-    });
+    : await fetchBodyWithTimeout(url);
 
   logInfo('CSV fetch completed', {
     source: sourceName,
