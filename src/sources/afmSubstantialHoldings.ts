@@ -223,6 +223,9 @@ export async function ingestAfmSubstantialHoldings(
       sourceName: 'afm_substantial',
       sourceRole: 'secondary_confirmation',
       sourceUrl: url,
+      signalDirection: reduction ? 'sell' : 'unclear',
+      signalClarity: reduction ? 'explicit' : 'unclear',
+      liquidityRelevance: reduction ? 0.72 : 0.3,
       evidenceType: 'afm_csv_holding_notice',
       evidenceStrength: reduction ? 0.82 : 0.55,
       rawSummary: [

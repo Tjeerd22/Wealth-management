@@ -1,6 +1,6 @@
 import { deterministicId, splitName, surnameKey, titleCase } from '../utils/strings.js';
 import { toIsoDate } from '../utils/dates.js';
-import { NormalizedSignalRecord, PersonType, SourceRole } from '../types.js';
+import { NormalizedSignalRecord, PersonType, SignalClarity, SignalDirection, SourceRole } from '../types.js';
 
 interface NormalizeInput {
   personName: string;
@@ -17,6 +17,9 @@ interface NormalizeInput {
   rawSummary: string;
   personType?: PersonType;
   sourceRole?: SourceRole;
+  signalDirection?: SignalDirection;
+  signalClarity?: SignalClarity;
+  liquidityRelevance?: number;
   capitalInterestBefore?: number | null;
   capitalInterestAfter?: number | null;
   notes?: string[];
@@ -40,6 +43,9 @@ export function normalizeRecord(input: NormalizeInput): NormalizedSignalRecord {
     signal_type: input.signalType,
     signal_date: signalDate,
     signal_detail: input.signalDetail,
+    signal_direction: input.signalDirection ?? 'unclear',
+    signal_clarity: input.signalClarity ?? 'unclear',
+    liquidity_relevance: input.liquidityRelevance ?? 0.3,
     signal_value_estimate: null,
     signal_currency: '',
     capital_interest_before: input.capitalInterestBefore ?? null,

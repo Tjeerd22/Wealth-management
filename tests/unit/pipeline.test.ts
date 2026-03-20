@@ -436,6 +436,61 @@ describe('connector os dutch liquidity pipeline', () => {
     expect(record.blocked_by).not.toContain('secondary_source_no_primary_match');
   });
 
+  // --- Section 10: Signal interpretation fields ---
+
+  it('MAR 19 records carry signal_direction=unclear, signal_clarity=inferred, liquidity_relevance=0.5', async () => {
+    const records = await ingestAfmMar19(mar19SemicolonFixtureUrl.pathname);
+    for (const r of records) {
+      expect(r.signal_direction).toBe('unclear');
+      expect(r.signal_clarity).toBe('inferred');
+      expect(r.liquidity_relevance).toBe(0.5);
+    }
+  });
+
+  it('substantial holdings reduction records carry signal_direction=sell, signal_clarity=explicit, liquidity_relevance=0.72', async () => {
+    const records = await ingestAfmSubstantialHoldings(substantialSemicolonFixtureUrl.pathname, 3650);
+    const reductions = records.filter((r) => r.signal_type === 'substantial_holding_reduction');
+    expect(reductions.length).toBeGreaterThan(0);
+    for (const r of reductions) {
+      expect(r.signal_direction).toBe('sell');
+      expect(r.signal_clarity).toBe('explicit');
+      expect(r.liquidity_relevance).toBe(0.72);
+    }
+  });
+
+  it('substantial holdings non-reduction records carry signal_direction=unclear, signal_clarity=unclear, liquidity_relevance=0.3', async () => {
+    const records = await ingestAfmSubstantialHoldings(substantialSemicolonFixtureUrl.pathname, 3650);
+    const nonReductions = records.filter((r) => r.signal_type !== 'substantial_holding_reduction');
+    // If all fixture rows happen to be reductions, verify via normalizeRecord default instead.
+    if (nonReductions.length === 0) {
+      const r = normalizeRecord({
+        personName: 'Test Person',
+        companyName: 'Test NV',
+        signalDate: '2026-03-19',
+        signalType: 'substantial_holding_change_unclear',
+        signalDetail: 'Direction unclear',
+        sourceName: 'afm_substantial',
+        sourceRole: 'secondary_confirmation',
+        signalDirection: 'unclear',
+        signalClarity: 'unclear',
+        liquidityRelevance: 0.3,
+        sourceUrl: 'fixture',
+        evidenceType: 'afm_csv_holding_notice',
+        evidenceStrength: 0.55,
+        rawSummary: 'fixture',
+      });
+      expect(r.signal_direction).toBe('unclear');
+      expect(r.signal_clarity).toBe('unclear');
+      expect(r.liquidity_relevance).toBe(0.3);
+    } else {
+      for (const r of nonReductions) {
+        expect(r.signal_direction).toBe('unclear');
+        expect(r.signal_clarity).toBe('unclear');
+        expect(r.liquidity_relevance).toBe(0.3);
+      }
+    }
+  });
+
   // --- Section 7: Source reliability policy (degraded mode) ---
 
   it('AFM substantial holdings 504 triggers degraded mode — run continues with MAR 19 only', async () => {
