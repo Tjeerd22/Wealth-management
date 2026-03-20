@@ -125,3 +125,5 @@ export function logNormalizationHealth(sourceName: string, records: NormalizedSi
     throw new Error(`Normalization health check failed for ${sourceName}: ${failures.join('; ')}.`);
   }
 }
+
+(globalThis as typeof globalThis & { validateSourceSchema?: typeof validateSourceSchema }).validateSourceSchema = validateSourceSchema;

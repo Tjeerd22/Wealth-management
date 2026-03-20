@@ -134,6 +134,51 @@ function makeEmptySourceStatus(enabled: boolean): SourceFetchStatus {
   return { enabled, status: enabled ? 'failed' : 'skipped', row_count: 0, retries_attempted: 0, elapsed_ms: 0 };
 }
 
+export async function loadSourceWithPolicy(
+  sourceKey: SourceKey,
+  url: string,
+  loader: () => Promise<NormalizedSignalRecord[]>,
+): Promise<{ degraded: boolean; status: { status: SourceFetchStatus['status']; retries: number; elapsed_ms: number; error?: string; row_count: number } }> {
+  const startedAt = Date.now();
+  let retries = 0;
+
+  while (true) {
+    try {
+      const records = await loader();
+      return {
+        degraded: false,
+        status: {
+          status: 'ok',
+          retries,
+          elapsed_ms: getElapsedMs(startedAt),
+          row_count: records.length,
+        },
+      };
+    } catch (error) {
+      if (sourceKey === 'afm_substantial' && retries < SUBSTANTIAL_RETRY_LIMIT && isRetryableSubstantialFailure(error)) {
+        retries += 1;
+        await sleep(getRetryDelayMs(retries));
+        continue;
+      }
+
+      if (sourceKey === 'afm_substantial') {
+        return {
+          degraded: true,
+          status: {
+            status: 'degraded',
+            retries,
+            elapsed_ms: getElapsedMs(startedAt),
+            row_count: 0,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        };
+      }
+
+      throw new Error(`AFM MAR 19 failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+}
+
 export async function run(): Promise<void> {
   let actorInitialized = false;
   let finalRunState: FinalRunState = 'failed';
@@ -306,7 +351,6 @@ export async function run(): Promise<void> {
       excluded_institutions: excludedInstitutions,
       low_confidence_records: lowConfidenceRecords,
       source_stats: sourceStats,
-      source_status: sourceStatus,
       review_bucket_stats,
       outputs_written: outputsWritten,
     };
