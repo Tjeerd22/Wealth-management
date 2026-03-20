@@ -183,6 +183,27 @@ After a run, expect:
 - If no Exa API key is configured, Exa confirmation is skipped without failing the run.
 - Existing business rules, match-ready strictness, and data sources are intentionally unchanged.
 
+
+## Dedupe invariants
+
+The AFM-only dedupe stage is intentionally conservative:
+
+- Exact merges require the same normalized person name, normalized issuer name, signal date, signal type, and source.
+- Initial/surname merges are only allowed when the source, issuer, signal type, and exact date also match.
+- Distinct dates are never merged.
+- Dedupe groups do not chain across already-merged aliases; each record is matched only against a stable per-key canonical record.
+- The runtime logs records before dedupe, records after dedupe, merge counts, top merge reasons, suspiciously large groups, and a warning when the reduction ratio looks implausibly high.
+
+## Raw archive size limits
+
+The default dataset is now bounded before each `Dataset.pushData` call:
+
+- Each raw archive item is serialized and checked against an 8,000,000-byte safety limit.
+- Oversized `notes`, `provenance_record_ids`, `provenance_sources`, `confirmation_urls`, and `confirmation_sources` arrays are capped.
+- `signal_detail`, `raw_source_payload_summary`, `confirmation_summary`, and `enrichment_context` are truncated when needed.
+- If a record is still too large after normal compaction, the full audit detail is moved to the default key-value store under `RAW_ARCHIVE_AUDIT_<record_id>` and the dataset item keeps only a compact pointer plus summary.
+- Review and match-ready exports keep their existing semantics; only the raw archive representation is compacted for storage safety.
+
 ## Remaining manual steps in Apify Console
 
 1. Create the Actor from this Git repository.

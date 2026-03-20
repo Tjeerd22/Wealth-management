@@ -8,7 +8,7 @@ import { scoreNaturalPersonConfidence } from './filters/personConfidence.js';
 import { enrichRecord } from './enrich/enrichRecord.js';
 import { scoreSignal } from './scoring/scoreSignal.js';
 import { applySignalGates } from './filters/signalGates.js';
-import { dedupeSignals } from './dedupe/dedupeSignals.js';
+import { dedupeSignalsWithStats } from './dedupe/dedupeSignals.js';
 import { exportRawArchive } from './export/exportRawArchive.js';
 import { exportReviewDataset, rankReviewRecords } from './export/exportReviewDataset.js';
 import { exportMatchReady } from './export/exportMatchReady.js';
@@ -213,8 +213,14 @@ export async function run(): Promise<void> {
     stageLog('normalization started', { records: records.length });
     stageLog('normalization completed', { records: records.length });
     stageLog('dedupe started', { recordsBeforeDedupe: records.length });
-    records = dedupeSignals(records);
-    stageLog('dedupe completed', { recordsAfterDedupe: records.length });
+    const dedupeResult = dedupeSignalsWithStats(records);
+    records = dedupeResult.records;
+    stageLog('dedupe completed', {
+      recordsAfterDedupe: records.length,
+      mergesPerformed: dedupeResult.stats.mergesPerformed,
+      topMergeReasons: dedupeResult.stats.topMergeReasons,
+      suspiciousGroups: dedupeResult.stats.suspiciousGroups,
+    });
 
     let excludedInstitutions = 0;
     let lowConfidenceRecords = 0;
@@ -249,8 +255,9 @@ export async function run(): Promise<void> {
       postFilterRecords: postFilterRecords.length,
     });
 
-    await exportRawArchive(records);
-    outputWriteStats.defaultDatasetItems = records.length;
+    const rawArchiveStats = await exportRawArchive(records);
+    outputWriteStats.defaultDatasetItems = rawArchiveStats.itemsWritten;
+    stageLog('raw archive export completed', rawArchiveStats);
 
     await confirmContextForTopReviewRecords(rankReviewRecords(postFilterRecords), input);
     const review = await exportReviewDataset(postFilterRecords, input.maxReviewRecords);
