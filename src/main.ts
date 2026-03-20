@@ -20,6 +20,8 @@ import { confirmContextForTopReviewRecords } from './enrich/confirmContextForTop
 
 type InputAliasMap = Partial<ActorInput> & Record<string, unknown>;
 
+type SourceKey = 'afm_mar19' | 'afm_substantial';
+
 interface NormalizedRuntimeConfig {
   runAfmMar19: boolean;
   runAfmSubstantialHoldings: boolean;
@@ -39,101 +41,50 @@ interface NormalizedRuntimeConfig {
 }
 
 const RUNTIME_LOG_PREFIX = '[RUNTIME]';
+const SUBSTANTIAL_RETRY_LIMIT = 2;
+const RETRY_BASE_DELAY_MS = 500;
 
-function stageLog(stage: string, data?: unknown): void {
-  logInfo(`${RUNTIME_LOG_PREFIX} ${stage}`, data);
+function stageLog(stage: string, data?: unknown): void { logInfo(`${RUNTIME_LOG_PREFIX} ${stage}`, data); }
+function stageWarn(stage: string, data?: unknown): void { logWarn(`${RUNTIME_LOG_PREFIX} ${stage}`, data); }
+function stageError(stage: string, error: unknown): void { console.error(`[ERROR] ${RUNTIME_LOG_PREFIX} ${stage}`, error); }
+const pickBoolean = (value: unknown, fallback: boolean): boolean => typeof value === 'boolean' ? value : fallback;
+const pickNumber = (value: unknown, fallback: number): number => typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+const pickString = (value: unknown, fallback: string): string => typeof value === 'string' ? value : fallback;
+
+function getElapsedMs(startedAt: number): number { return Date.now() - startedAt; }
+function sleep(ms: number): Promise<void> { return new Promise((resolve) => setTimeout(resolve, ms)); }
+function getRetryDelayMs(attempt: number): number { return RETRY_BASE_DELAY_MS * (2 ** (attempt - 1)) + Math.floor(Math.random() * 200); }
+
+function extractHttpStatus(error: unknown): number | undefined {
+  if (!(error instanceof Error)) return undefined;
+  const match = error.message.match(/(?:status|HTTP|fetch CSV from .*:)\s*:?(\d{3})/i) ?? error.message.match(/(\d{3})/);
+  return match ? Number(match[1]) : undefined;
 }
 
-function stageWarn(stage: string, data?: unknown): void {
-  logWarn(`${RUNTIME_LOG_PREFIX} ${stage}`, data);
-}
-
-function stageError(stage: string, error: unknown): void {
-  console.error(`[ERROR] ${RUNTIME_LOG_PREFIX} ${stage}`, error);
-}
-
-function pickBoolean(value: unknown, fallback: boolean): boolean {
-  return typeof value === 'boolean' ? value : fallback;
-}
-
-function pickNumber(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-function pickString(value: unknown, fallback: string): string {
-  return typeof value === 'string' ? value : fallback;
+function isRetryableSubstantialFailure(error: unknown): boolean {
+  const status = extractHttpStatus(error);
+  return status === 504 || (typeof status === 'number' && status >= 500) || String(error).toLowerCase().includes('timeout');
 }
 
 function resolveInput(rawInput: InputAliasMap | null | undefined): ActorInput {
   const aliases = rawInput ?? {};
   const merged = { ...defaultInput, ...aliases };
   const runAfmMar19 = pickBoolean(aliases.runAfmMar19 ?? aliases.run_afm_mar19, defaultInput.runAfmMar19);
-  const runAfmSubstantialHoldings = pickBoolean(
-    aliases.runAfmSubstantialHoldings ?? aliases.run_afm_substantial_holdings ?? aliases.runSubstantialHoldings,
-    defaultInput.runAfmSubstantialHoldings,
-  );
+  const runAfmSubstantialHoldings = pickBoolean(aliases.runAfmSubstantialHoldings ?? aliases.run_afm_substantial_holdings ?? aliases.runSubstantialHoldings, defaultInput.runAfmSubstantialHoldings);
   const afmMar19CsvUrl = pickString(aliases.afmMar19CsvUrl ?? aliases.afm_mar19_csv_url, defaultInput.afmMar19CsvUrl).trim();
-  const afmSubstantialHoldingsCsvUrl = pickString(
-    aliases.afmSubstantialHoldingsCsvUrl ?? aliases.afm_substantial_holdings_csv_url,
-    defaultInput.afmSubstantialHoldingsCsvUrl,
-  ).trim();
-  const runExaConfirmation = pickBoolean(
-    aliases.runExaConfirmation ?? aliases.runExaEnrichment ?? aliases.run_exa_confirmation ?? aliases.run_exa_enrichment,
-    defaultInput.runExaConfirmation ?? defaultInput.runExaEnrichment,
-  );
-  const topBucketBForExa = pickNumber(
-    aliases.topBucketBForExa ?? aliases.exaTopReviewConfirmations ?? aliases.top_bucket_b_for_exa ?? aliases.exa_top_review_confirmations,
-    defaultInput.topBucketBForExa ?? defaultInput.exaTopReviewConfirmations,
-  );
+  const afmSubstantialHoldingsCsvUrl = pickString(aliases.afmSubstantialHoldingsCsvUrl ?? aliases.afm_substantial_holdings_csv_url, defaultInput.afmSubstantialHoldingsCsvUrl).trim();
+  const runExaConfirmation = pickBoolean(aliases.runExaConfirmation ?? aliases.runExaEnrichment ?? aliases.run_exa_confirmation ?? aliases.run_exa_enrichment, defaultInput.runExaConfirmation ?? defaultInput.runExaEnrichment);
+  const topBucketBForExa = pickNumber(aliases.topBucketBForExa ?? aliases.exaTopReviewConfirmations ?? aliases.top_bucket_b_for_exa ?? aliases.exa_top_review_confirmations, defaultInput.topBucketBForExa ?? defaultInput.exaTopReviewConfirmations);
   const exaApiKey = pickString(aliases.exaApiKey ?? aliases.exa_api_key ?? merged.exaApiKey ?? process.env.EXA_API_KEY, '').trim();
-
-  return {
-    ...merged,
-    runAfmMar19,
-    runAfmSubstantialHoldings,
-    afmMar19CsvUrl,
-    afmSubstantialHoldingsCsvUrl,
-    runExaConfirmation,
-    runExaEnrichment: runExaConfirmation,
-    topBucketBForExa,
-    exaTopReviewConfirmations: topBucketBForExa,
-    exaApiKey,
-    lookbackDays: pickNumber(aliases.lookbackDays ?? aliases.lookback_days, defaultInput.lookbackDays),
-    minSignalConfidence: pickNumber(aliases.minSignalConfidence ?? aliases.min_signal_confidence, defaultInput.minSignalConfidence),
-    minNaturalPersonConfidence: pickNumber(aliases.minNaturalPersonConfidence ?? aliases.min_natural_person_confidence, defaultInput.minNaturalPersonConfidence),
-    excludeInstitutions: pickBoolean(aliases.excludeInstitutions ?? aliases.exclude_institutions, defaultInput.excludeInstitutions),
-    maxReviewRecords: pickNumber(aliases.maxReviewRecords ?? aliases.max_review_records, defaultInput.maxReviewRecords),
-    maxMatchReadyRecords: pickNumber(aliases.maxMatchReadyRecords ?? aliases.max_match_ready_records, defaultInput.maxMatchReadyRecords),
-    exaFreshnessMaxAgeHours: pickNumber(aliases.exaFreshnessMaxAgeHours ?? aliases.exa_freshness_max_age_hours, defaultInput.exaFreshnessMaxAgeHours),
-    debug: pickBoolean(aliases.debug, defaultInput.debug),
-  };
+  return { ...merged, runAfmMar19, runAfmSubstantialHoldings, afmMar19CsvUrl, afmSubstantialHoldingsCsvUrl, runExaConfirmation, runExaEnrichment: runExaConfirmation, topBucketBForExa, exaTopReviewConfirmations: topBucketBForExa, exaApiKey, lookbackDays: pickNumber(aliases.lookbackDays ?? aliases.lookback_days, defaultInput.lookbackDays), minSignalConfidence: pickNumber(aliases.minSignalConfidence ?? aliases.min_signal_confidence, defaultInput.minSignalConfidence), minNaturalPersonConfidence: pickNumber(aliases.minNaturalPersonConfidence ?? aliases.min_natural_person_confidence, defaultInput.minNaturalPersonConfidence), excludeInstitutions: pickBoolean(aliases.excludeInstitutions ?? aliases.exclude_institutions, defaultInput.excludeInstitutions), maxReviewRecords: pickNumber(aliases.maxReviewRecords ?? aliases.max_review_records, defaultInput.maxReviewRecords), maxMatchReadyRecords: pickNumber(aliases.maxMatchReadyRecords ?? aliases.max_match_ready_records, defaultInput.maxMatchReadyRecords), exaFreshnessMaxAgeHours: pickNumber(aliases.exaFreshnessMaxAgeHours ?? aliases.exa_freshness_max_age_hours, defaultInput.exaFreshnessMaxAgeHours), debug: pickBoolean(aliases.debug, defaultInput.debug) };
 }
 
 function toRuntimeConfig(input: ActorInput): NormalizedRuntimeConfig {
-  return {
-    runAfmMar19: input.runAfmMar19,
-    runAfmSubstantialHoldings: input.runAfmSubstantialHoldings,
-    runExaConfirmation: input.runExaConfirmation ?? false,
-    afmMar19CsvUrl: input.afmMar19CsvUrl,
-    afmSubstantialHoldingsCsvUrl: input.afmSubstantialHoldingsCsvUrl,
-    lookbackDays: input.lookbackDays,
-    minSignalConfidence: input.minSignalConfidence,
-    minNaturalPersonConfidence: input.minNaturalPersonConfidence,
-    excludeInstitutions: input.excludeInstitutions,
-    maxReviewRecords: input.maxReviewRecords,
-    maxMatchReadyRecords: input.maxMatchReadyRecords,
-    topBucketBForExa: input.topBucketBForExa ?? input.exaTopReviewConfirmations,
-    exaFreshnessMaxAgeHours: input.exaFreshnessMaxAgeHours,
-    debug: input.debug,
-    hasExaApiKey: Boolean(input.exaApiKey),
-  };
+  return { runAfmMar19: input.runAfmMar19, runAfmSubstantialHoldings: input.runAfmSubstantialHoldings, runExaConfirmation: input.runExaConfirmation ?? false, afmMar19CsvUrl: input.afmMar19CsvUrl, afmSubstantialHoldingsCsvUrl: input.afmSubstantialHoldingsCsvUrl, lookbackDays: input.lookbackDays, minSignalConfidence: input.minSignalConfidence, minNaturalPersonConfidence: input.minNaturalPersonConfidence, excludeInstitutions: input.excludeInstitutions, maxReviewRecords: input.maxReviewRecords, maxMatchReadyRecords: input.maxMatchReadyRecords, topBucketBForExa: input.topBucketBForExa ?? input.exaTopReviewConfirmations, exaFreshnessMaxAgeHours: input.exaFreshnessMaxAgeHours, debug: input.debug, hasExaApiKey: Boolean(input.exaApiKey) };
 }
 
 function getSelectedSources(input: ActorInput): string[] {
-  return [
-    input.runAfmMar19 ? 'afm_mar19' : null,
-    input.runAfmSubstantialHoldings ? 'afm_substantial' : null,
-  ].filter((value): value is string => Boolean(value));
+  return [input.runAfmMar19 ? 'afm_mar19' : null, input.runAfmSubstantialHoldings ? 'afm_substantial' : null].filter((value): value is string => Boolean(value));
 }
 
 export function appendRecords(target: NormalizedSignalRecord[], source: NormalizedSignalRecord[]): number {
@@ -159,31 +110,22 @@ export async function run(): Promise<void> {
     await Actor.init();
     actorInitialized = true;
     stageLog('actor initialized');
-
     const rawInput = await Actor.getInput<InputAliasMap>();
     stageLog('input loaded', rawInput ?? {});
-
     const input = resolveInput(rawInput);
     const runtimeConfig = toRuntimeConfig(input);
-    stageLog('normalized input resolved');
     stageLog('normalized runtime config', runtimeConfig);
-
     const selectedSources = getSelectedSources(input);
-    stageLog('source modules selected', { selectedSources });
-
-    if (!selectedSources.length) {
-      throw new Error('No source module is enabled after input normalization.');
-    }
-
-    if (!input.afmMar19CsvUrl && !input.afmSubstantialHoldingsCsvUrl) {
-      throw new Error('Both AFM source URLs are empty after normalization.');
-    }
+    stageLog('source selected', { selectedSources });
+    if (!selectedSources.length) throw new Error('No source module is enabled after input normalization.');
+    if (!input.afmMar19CsvUrl && !input.afmSubstantialHoldingsCsvUrl) throw new Error('Both AFM source URLs are empty after normalization.');
 
     sourceStatus.afm_mar19 = makeEmptySourceStatus(input.runAfmMar19);
     sourceStatus.afm_substantial = makeEmptySourceStatus(input.runAfmSubstantialHoldings);
 
     const sourceStats = { afm_mar19: 0, afm_substantial: 0, exa_enriched: 0 };
     let records: NormalizedSignalRecord[] = [];
+    let degradedRun = false;
 
     // --- MAR 19 fetch ---
     // Policy: MAR 19 failure is fatal. It is the primary source.
@@ -249,16 +191,10 @@ export async function run(): Promise<void> {
     stageLog('dedupe started', { recordsBeforeDedupe: records.length });
     const dedupeResult = dedupeSignalsWithStats(records);
     records = dedupeResult.records;
-    stageLog('dedupe completed', {
-      recordsAfterDedupe: records.length,
-      mergesPerformed: dedupeResult.stats.mergesPerformed,
-      topMergeReasons: dedupeResult.stats.topMergeReasons,
-      suspiciousGroups: dedupeResult.stats.suspiciousGroups,
-    });
+    stageLog('dedupe completed', { recordsAfterDedupe: records.length, mergesPerformed: dedupeResult.stats.mergesPerformed, topMergeReasons: dedupeResult.stats.topMergeReasons, suspiciousGroups: dedupeResult.stats.suspiciousGroups });
 
     let excludedInstitutions = 0;
     let lowConfidenceRecords = 0;
-
     stageLog('scoring started', { recordsAfterDedupe: records.length });
     for (const record of records) {
       applyInstitutionalFilter(record);
@@ -273,22 +209,10 @@ export async function run(): Promise<void> {
       if (input.excludeInstitutions && record.institutional_risk === 'high') excludedInstitutions += 1;
       if (record.signal_confidence < input.minSignalConfidence) lowConfidenceRecords += 1;
     }
-    stageLog('scoring completed', {
-      recordsScored: records.length,
-      excludedInstitutions,
-      lowConfidenceRecords,
-      exaEnriched: sourceStats.exa_enriched,
-    });
+    stageLog('scoring completed', { recordsScored: records.length, excludedInstitutions, lowConfidenceRecords, exaEnriched: sourceStats.exa_enriched });
 
-    const postFilterRecords = input.excludeInstitutions
-      ? records.filter((record) => record.institutional_risk !== 'high')
-      : records;
-
-    stageLog('exports started', {
-      rawRecords: records.length,
-      postFilterRecords: postFilterRecords.length,
-    });
-
+    const postFilterRecords = input.excludeInstitutions ? records.filter((record) => record.institutional_risk !== 'high') : records;
+    stageLog('exports started', { rawRecords: records.length, postFilterRecords: postFilterRecords.length });
     const rawArchiveStats = await exportRawArchive(records);
     stageLog('raw archive export completed', rawArchiveStats);
 
@@ -344,6 +268,7 @@ export async function run(): Promise<void> {
       excluded_institutions: excludedInstitutions,
       low_confidence_records: lowConfidenceRecords,
       source_stats: sourceStats,
+      source_status: sourceStatus,
       review_bucket_stats,
       outputs_written: outputsWritten,
     };

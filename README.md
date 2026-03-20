@@ -18,7 +18,7 @@ tests/
   unit/
 ```
 
-## What the actor does
+## Source schema contract
 
 Ingests AFM MAR 19 and AFM substantial holdings CSV feeds, applies normalization, filtering, scoring, deduplication, and export pipeline:
 

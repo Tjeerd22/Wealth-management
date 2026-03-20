@@ -77,14 +77,23 @@ export function logNormalizationHealth(sourceName: string, rows: Record<string, 
     signal_type: record.signal_type,
   }));
 
+  return {
+    totalRows: records.length,
+    rowsWithCompanyName,
+    rowsWithPersonName,
+    rowsWithSignalDate,
+    rowsWithAllRequiredIdentityFields,
+    missingCompanyOrPersonRatio: records.length ? 1 - (records.filter((record) => !isMissingIdentityValue(record.company_name) && !isMissingIdentityValue(record.person_name)).length / records.length) : 0,
+    sampleNormalizedRecords,
+  };
+}
+
+export function logNormalizationHealth(sourceName: string, records: NormalizedSignalRecord[]): SourceNormalizationHealth {
+  const health = getNormalizationHealth(records);
+
   logInfo('source normalization health', {
     sourceName,
-    totalRows: rows.length,
-    rowsWithCompanyName: companyNameCount,
-    rowsWithPersonName: personNameCount,
-    rowsWithSignalDate: signalDateCount,
-    rowsWithAllRequiredIdentityFields: completeIdentityCount,
-    sampleNormalizedRecords: sampleRecords,
+    ...health,
   });
 
   if (!rows.length) return;
@@ -113,4 +122,6 @@ export function logNormalizationHealth(sourceName: string, rows: Record<string, 
     });
     throw new Error(`Normalization health check failed for ${sourceName}: ${failures.join('; ')}.`);
   }
+
+  return health;
 }
