@@ -8,7 +8,6 @@ RUN npm ci --include=dev
 COPY tsconfig.json ./
 COPY .actor ./.actor
 COPY src ./src
-COPY tests ./tests
 COPY README.md ./README.md
 
 RUN npm run build

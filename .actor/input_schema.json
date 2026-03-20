@@ -1,88 +1,123 @@
 {
-  "title": "Dutch HNWI Signal Engine Input",
-  "description": "AFM-only liquidity signal review engine with optional Exa shortlist confirmation.",
+  "title": "Dutch HNWI Signal Engine — Input",
+  "description": "AFM-based liquidity signal pipeline with optional Exa shortlist confirmation. Fetches AFM MAR 19 and AFM substantial holdings CSV exports, scores and filters signals, and writes outputs to Apify datasets and KV store.",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
     "runAfmMar19": {
       "title": "Run AFM MAR 19",
       "type": "boolean",
-      "description": "Process AFM MAR 19 CSV.",
+      "description": "Ingest the AFM MAR 19 (Melding artikel 19 MAR) CSV export. This is the primary source. If disabled and substantial holdings is also disabled, the run fails. If MAR 19 fails to fetch, the run fails regardless of other sources.",
       "default": true
     },
     "runAfmSubstantialHoldings": {
-      "title": "Run AFM Substantial Holdings",
+      "title": "Run AFM substantial holdings",
       "type": "boolean",
-      "description": "Process AFM substantial holdings CSV.",
+      "description": "Ingest the AFM substantial holdings (Meldingen substantiële deelnemingen) CSV export. This is a secondary confirmation source. If this source fails after retries, the run enters degraded mode and continues with MAR 19 only. Does not cause a fatal failure on its own.",
       "default": true
     },
     "runExaConfirmation": {
-      "title": "Run Exa shortlist confirmation",
+      "title": "Run Exa confirmation",
       "type": "boolean",
-      "description": "Use Exa only on shortlisted review records.",
+      "description": "Enable the optional Exa neural search confirmation pass. When enabled, the top review records (bucket A + top N bucket B) are enriched with Exa web search results to confirm person context, role, and disposal language. Requires exaApiKey or EXA_API_KEY environment variable. If Exa is unavailable, the run continues without confirmation and records are marked accordingly.",
       "default": false
     },
     "afmMar19CsvUrl": {
-      "title": "AFM MAR 19 CSV URL",
+      "title": "AFM MAR 19 CSV URL (override)",
       "type": "string",
-      "description": "Optional override for AFM MAR 19 CSV source.",
+      "description": "Optional override for the AFM MAR 19 CSV download URL. Leave blank to use the default AFM endpoint. Use this to point at a fixture file or a cached copy for testing.",
       "editor": "textfield",
       "default": ""
     },
     "afmSubstantialHoldingsCsvUrl": {
-      "title": "AFM Substantial Holdings CSV URL",
+      "title": "AFM substantial holdings CSV URL (override)",
       "type": "string",
-      "description": "Optional override for AFM substantial holdings CSV source.",
+      "description": "Optional override for the AFM substantial holdings CSV download URL. Leave blank to use the default AFM endpoint. The file is approximately 95 MB and 250,000+ rows — early lookback filtering keeps memory bounded.",
       "editor": "textfield",
       "default": ""
     },
     "lookbackDays": {
       "title": "Lookback days",
       "type": "integer",
-      "description": "How far back to consider signals.",
-      "default": 45
+      "description": "Signals older than this many days are dropped during the early lookback filter step. Applies to both sources. Lower values produce fewer but more recent signals. Default 45 days covers the most recent AFM MAR 19 and substantial holdings filings.",
+      "default": 45,
+      "minimum": 7,
+      "maximum": 365
     },
     "minSignalConfidence": {
-      "title": "Minimum signal confidence",
+      "title": "Minimum signal confidence gate",
       "type": "number",
-      "description": "Threshold for evidence-based signal confidence.",
-      "default": 0.6
+      "description": "Records with signal_confidence below this threshold are blocked by the 'below_min_signal_confidence' gate and do not reach match-ready or shortlist. Default 0.6. Lowering this value increases recall but reduces precision.",
+      "default": 0.6,
+      "minimum": 0,
+      "maximum": 1
     },
     "minNaturalPersonConfidence": {
-      "title": "Minimum natural person confidence",
+      "title": "Minimum natural person confidence gate",
       "type": "number",
-      "description": "Threshold for person-likelihood gating.",
-      "default": 0.6
+      "description": "Records with natural_person_confidence below this threshold are blocked by the 'low_natural_person_confidence' gate. Default 0.6. Institutional-sounding names score near 0.1; clear person names score 0.76+.",
+      "default": 0.6,
+      "minimum": 0,
+      "maximum": 1
+    },
+    "excludeInstitutions": {
+      "title": "Exclude institutional records from exports",
+      "type": "boolean",
+      "description": "When true, records flagged as high institutional risk (institutional_risk=high) are removed from all exports after scoring. They are still counted in the raw archive. Disable this only for diagnostic runs.",
+      "default": true
     },
     "maxReviewRecords": {
-      "title": "Max review records",
+      "title": "Max review dataset records",
       "type": "integer",
-      "description": "Maximum number of review records to export.",
-      "default": 100
+      "description": "Maximum number of records written to the 'review' named dataset. Records are ranked by bucket (A → B → C), issuer desirability, NL relevance, and natural person confidence before slicing.",
+      "default": 100,
+      "minimum": 1,
+      "maximum": 1000
     },
     "maxMatchReadyRecords": {
-      "title": "Max match-ready records",
+      "title": "Max match-ready dataset records",
       "type": "integer",
-      "description": "Maximum number of match-ready records to export.",
-      "default": 30
+      "description": "Maximum number of records written to the 'match-ready' named dataset. Match-ready records must pass all strict signal gates. Without Exa confirmation, match-ready output is typically 0 because records require enrichment_context or verified role data.",
+      "default": 30,
+      "minimum": 1,
+      "maximum": 500
+    },
+    "maxShortlistRecords": {
+      "title": "Max shortlist dataset records",
+      "type": "integer",
+      "description": "Maximum number of records written to the 'shortlist' named dataset. The shortlist uses a softer gate than match-ready: requires review bucket A or B, natural_person_confidence ≥ 0.45, and signal_confidence ≥ 0.40. Does not require Exa confirmation.",
+      "default": 60,
+      "minimum": 1,
+      "maximum": 300
     },
     "topBucketBForExa": {
-      "title": "Top bucket B records for Exa",
+      "title": "Bucket B records for Exa confirmation",
       "type": "integer",
-      "description": "How many bucket B records to send through shortlist confirmation.",
-      "default": 5
+      "description": "How many bucket B review records to include in the Exa confirmation pass (in addition to all bucket A records). Only relevant when runExaConfirmation is true. Set to 0 to confirm bucket A only.",
+      "default": 5,
+      "minimum": 0,
+      "maximum": 25
+    },
+    "exaFreshnessMaxAgeHours": {
+      "title": "Exa content freshness cap (hours)",
+      "type": "integer",
+      "description": "Maximum age in hours for Exa content fetches during confirmation. Content older than this will not be fetched. Default 72 hours covers a 3-day window around the signal date. Only relevant when runExaConfirmation is true.",
+      "default": 72,
+      "minimum": 1,
+      "maximum": 720
     },
     "exaApiKey": {
       "title": "Exa API key",
       "type": "string",
-      "description": "Optional Exa API key.",
+      "description": "Exa neural search API key. Optional — if blank, the actor falls back to the EXA_API_KEY environment variable. If neither is set, Exa confirmation is disabled and the run continues without it. The key is never logged. Store this as an Apify secret.",
       "editor": "textfield",
-      "isSecret": true
+      "isSecret": true,
+      "default": ""
     },
     "debug": {
-      "title": "Debug",
+      "title": "Debug logging",
       "type": "boolean",
-      "description": "Enable verbose logging.",
+      "description": "Enable verbose debug logging. Produces additional structured log entries for each pipeline stage. Useful for diagnosing schema drift or gate threshold issues.",
       "default": false
     }
   }

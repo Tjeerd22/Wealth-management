@@ -14,6 +14,12 @@ type CsvDelimiter = (typeof DELIMITER_CANDIDATES)[number];
 
 interface ParseCsvOptions {
   sourceName?: string;
+  /**
+   * Number of additional fetch attempts after the first (0 = no retry).
+   * Only applies to HTTP(S) URLs; local file reads are not retried.
+   * Defaults to 0 (single attempt, no retry).
+   */
+  maxRetries?: number;
 }
 
 function getRawPreview(body: string): string {
@@ -121,7 +127,7 @@ export async function fetchCsvRows(url: string, options: ParseCsvOptions = {}): 
   const isLocalPath = !/^https?:\/\//i.test(url);
   const body = isLocalPath
     ? await readFile(url.replace(/^file:\/\//i, ''), 'utf8')
-    : await fetchBodyWithTimeout(url);
+    : await fetchWithRetry(url, options.maxRetries ?? 0, sourceName);
 
   logInfo('CSV fetch completed', {
     source: sourceName,

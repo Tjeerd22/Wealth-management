@@ -18,6 +18,8 @@ export const AFM_MAR19_REQUIRED_COLUMNS = [
 ] as const;
 
 export async function ingestAfmMar19(url = DEFAULT_AFM_MAR19_CSV_URL): Promise<NormalizedSignalRecord[]> {
+  // MAR 19 failure is fatal — no retry. If the endpoint is unreachable the run fails
+  // immediately. Substantial holdings uses retries; MAR 19 does not.
   const rows = await fetchCsvRows(url, { sourceName: 'AFM MAR 19' });
 
   // Hard fail if required columns are absent. This catches AFM schema changes before
