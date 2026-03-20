@@ -16,6 +16,7 @@ export const defaultInput: ActorInput = {
   excludeInstitutions: true,
   maxReviewRecords: 100,
   maxMatchReadyRecords: 30,
+  maxShortlistRecords: 60,
   topBucketBForExa: 5,
   exaApiKey: '',
   exaTopReviewConfirmations: 5,

@@ -491,6 +491,98 @@ describe('connector os dutch liquidity pipeline', () => {
     }
   });
 
+  // --- Section 11: Shortlist eligibility ---
+
+  function makeShortlistRecord(overrides: Partial<Parameters<typeof normalizeRecord>[0]> = {}) {
+    const r = normalizeRecord({
+      personName: 'Joost De Vries',
+      companyName: 'Philips NV',
+      signalDate: '2026-03-15',
+      signalType: 'pdmr_transaction_unconfirmed',
+      signalDetail: 'AFM MAR 19 filing',
+      sourceName: 'afm_mar19',
+      sourceRole: 'primary',
+      signalDirection: 'unclear',
+      signalClarity: 'inferred',
+      liquidityRelevance: 0.5,
+      sourceUrl: 'fixture',
+      evidenceType: 'afm_csv_filing',
+      evidenceStrength: 0.66,
+      rawSummary: 'fixture',
+      ...overrides,
+    });
+    // Patch to a state that would earn bucket B (natural_person_confidence=0.5, nl_relevance_score=0.55)
+    r.natural_person_confidence = 0.5;
+    r.nl_relevance_score = 0.55;
+    r.issuer_desirability_score = 0.5;
+    scoreSignal(r, 45);
+    r.match_ready = true;
+    return r;
+  }
+
+  it('shortlist_eligible is true for an A/B bucket primary record meeting thresholds', () => {
+    const r = makeShortlistRecord();
+    // Force signal_confidence above 0.40 so the gate passes.
+    r.signal_confidence = 0.45;
+    applySignalGates(r, defaultInput);
+    // natural_person_confidence=0.5 >= 0.45, signal_confidence=0.45 >= 0.40,
+    // review_bucket=B, source_role=primary, signal_type has no 'unclear'
+    expect(r.review_bucket).toBe('B');
+    expect(r.shortlist_eligible).toBe(true);
+  });
+
+  it('shortlist_eligible is false when natural_person_confidence is below 0.45', () => {
+    const r = makeShortlistRecord();
+    r.natural_person_confidence = 0.3;
+    r.signal_confidence = 0.45;
+    applySignalGates(r, defaultInput);
+    expect(r.shortlist_eligible).toBe(false);
+  });
+
+  it('shortlist_eligible is false when signal_confidence is below 0.40', () => {
+    const r = makeShortlistRecord();
+    r.signal_confidence = 0.35;
+    applySignalGates(r, defaultInput);
+    expect(r.shortlist_eligible).toBe(false);
+  });
+
+  it('shortlist_eligible is false for a bucket C record', () => {
+    const r = makeShortlistRecord();
+    r.natural_person_confidence = 0.2; // pushes to C
+    r.nl_relevance_score = 0.2;
+    r.signal_confidence = 0.45;
+    applySignalGates(r, defaultInput);
+    // classifyReviewBucket: likelyPerson=false, 0.2<0.45 → 'C'
+    expect(r.review_bucket).toBe('C');
+    expect(r.shortlist_eligible).toBe(false);
+  });
+
+  it('shortlist_eligible is false for a standalone secondary record with no MAR 19 provenance', () => {
+    const r = makeShortlistRecord({ sourceName: 'afm_substantial', sourceRole: 'secondary_confirmation' });
+    r.natural_person_confidence = 0.5;
+    r.signal_confidence = 0.45;
+    // provenance_sources does not include afm_mar19
+    applySignalGates(r, defaultInput);
+    expect(r.shortlist_eligible).toBe(false);
+  });
+
+  it('shortlist_eligible is false for unclear signal_type with low liquidity_relevance', () => {
+    const r = makeShortlistRecord({ signalType: 'substantial_holding_change_unclear', liquidityRelevance: 0.3 });
+    r.natural_person_confidence = 0.5;
+    r.signal_confidence = 0.45;
+    applySignalGates(r, defaultInput);
+    // signal_type contains 'unclear' and liquidity_relevance=0.3 < 0.6 → not eligible
+    expect(r.shortlist_eligible).toBe(false);
+  });
+
+  it('shortlist_eligible is true when signal_type contains unclear but liquidity_relevance >= 0.6', () => {
+    const r = makeShortlistRecord({ signalType: 'substantial_holding_change_unclear', liquidityRelevance: 0.65 });
+    r.natural_person_confidence = 0.5;
+    r.signal_confidence = 0.45;
+    applySignalGates(r, defaultInput);
+    expect(r.shortlist_eligible).toBe(true);
+  });
+
   // --- Section 7: Source reliability policy (degraded mode) ---
 
   it('AFM substantial holdings 504 triggers degraded mode — run continues with MAR 19 only', async () => {

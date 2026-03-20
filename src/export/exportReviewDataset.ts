@@ -29,6 +29,7 @@ export function toReviewRecord(record: NormalizedSignalRecord): ReviewRecord {
     blocked_by: record.blocked_by,
     signal_confidence: record.signal_confidence,
     match_ready: record.match_ready,
+    shortlist_eligible: record.shortlist_eligible,
     notes: record.notes.join(' | '),
     context_confirmed: record.context_confirmed,
     disposal_confirmed: record.disposal_confirmed,

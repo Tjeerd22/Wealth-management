@@ -74,6 +74,14 @@ export const inputSchema = {
       minimum: 1,
       maximum: 500,
     },
+    maxShortlistRecords: {
+      title: 'Max shortlist records',
+      description: 'Maximum number of shortlist-eligible records to export to the shortlist named dataset. The shortlist is a softer gate than match-ready and does not require Exa enrichment.',
+      type: 'integer',
+      default: 60,
+      minimum: 1,
+      maximum: 300,
+    },
     topBucketBForExa: {
       title: 'Top bucket B for Exa',
       description: 'How many bucket B review records to include in the Exa confirmation shortlist.',

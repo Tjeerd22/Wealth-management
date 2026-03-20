@@ -9,8 +9,9 @@ import { enrichRecord } from './enrich/enrichRecord.js';
 import { scoreSignal } from './scoring/scoreSignal.js';
 import { applySignalGates } from './filters/signalGates.js';
 import { dedupeSignalsWithStats } from './dedupe/dedupeSignals.js';
+import { Dataset } from 'apify';
 import { exportRawArchive } from './export/exportRawArchive.js';
-import { exportReviewDataset, rankReviewRecords } from './export/exportReviewDataset.js';
+import { exportReviewDataset, rankReviewRecords, toReviewRecord } from './export/exportReviewDataset.js';
 import { exportMatchReady } from './export/exportMatchReady.js';
 import { scoreNlRelevance } from './scoring/scoreNlRelevance.js';
 import { scoreIssuerDesirability } from './scoring/scoreIssuerDesirability.js';
@@ -34,6 +35,7 @@ interface NormalizedRuntimeConfig {
   excludeInstitutions: boolean;
   maxReviewRecords: number;
   maxMatchReadyRecords: number;
+  maxShortlistRecords: number;
   topBucketBForExa: number;
   exaFreshnessMaxAgeHours: number;
   debug: boolean;
@@ -76,11 +78,11 @@ function resolveInput(rawInput: InputAliasMap | null | undefined): ActorInput {
   const runExaConfirmation = pickBoolean(aliases.runExaConfirmation ?? aliases.runExaEnrichment ?? aliases.run_exa_confirmation ?? aliases.run_exa_enrichment, defaultInput.runExaConfirmation ?? defaultInput.runExaEnrichment);
   const topBucketBForExa = pickNumber(aliases.topBucketBForExa ?? aliases.exaTopReviewConfirmations ?? aliases.top_bucket_b_for_exa ?? aliases.exa_top_review_confirmations, defaultInput.topBucketBForExa ?? defaultInput.exaTopReviewConfirmations);
   const exaApiKey = pickString(aliases.exaApiKey ?? aliases.exa_api_key ?? merged.exaApiKey ?? process.env.EXA_API_KEY, '').trim();
-  return { ...merged, runAfmMar19, runAfmSubstantialHoldings, afmMar19CsvUrl, afmSubstantialHoldingsCsvUrl, runExaConfirmation, runExaEnrichment: runExaConfirmation, topBucketBForExa, exaTopReviewConfirmations: topBucketBForExa, exaApiKey, lookbackDays: pickNumber(aliases.lookbackDays ?? aliases.lookback_days, defaultInput.lookbackDays), minSignalConfidence: pickNumber(aliases.minSignalConfidence ?? aliases.min_signal_confidence, defaultInput.minSignalConfidence), minNaturalPersonConfidence: pickNumber(aliases.minNaturalPersonConfidence ?? aliases.min_natural_person_confidence, defaultInput.minNaturalPersonConfidence), excludeInstitutions: pickBoolean(aliases.excludeInstitutions ?? aliases.exclude_institutions, defaultInput.excludeInstitutions), maxReviewRecords: pickNumber(aliases.maxReviewRecords ?? aliases.max_review_records, defaultInput.maxReviewRecords), maxMatchReadyRecords: pickNumber(aliases.maxMatchReadyRecords ?? aliases.max_match_ready_records, defaultInput.maxMatchReadyRecords), exaFreshnessMaxAgeHours: pickNumber(aliases.exaFreshnessMaxAgeHours ?? aliases.exa_freshness_max_age_hours, defaultInput.exaFreshnessMaxAgeHours), debug: pickBoolean(aliases.debug, defaultInput.debug) };
+  return { ...merged, runAfmMar19, runAfmSubstantialHoldings, afmMar19CsvUrl, afmSubstantialHoldingsCsvUrl, runExaConfirmation, runExaEnrichment: runExaConfirmation, topBucketBForExa, exaTopReviewConfirmations: topBucketBForExa, exaApiKey, lookbackDays: pickNumber(aliases.lookbackDays ?? aliases.lookback_days, defaultInput.lookbackDays), minSignalConfidence: pickNumber(aliases.minSignalConfidence ?? aliases.min_signal_confidence, defaultInput.minSignalConfidence), minNaturalPersonConfidence: pickNumber(aliases.minNaturalPersonConfidence ?? aliases.min_natural_person_confidence, defaultInput.minNaturalPersonConfidence), excludeInstitutions: pickBoolean(aliases.excludeInstitutions ?? aliases.exclude_institutions, defaultInput.excludeInstitutions), maxReviewRecords: pickNumber(aliases.maxReviewRecords ?? aliases.max_review_records, defaultInput.maxReviewRecords), maxMatchReadyRecords: pickNumber(aliases.maxMatchReadyRecords ?? aliases.max_match_ready_records, defaultInput.maxMatchReadyRecords), maxShortlistRecords: pickNumber(aliases.maxShortlistRecords ?? aliases.max_shortlist_records, defaultInput.maxShortlistRecords), exaFreshnessMaxAgeHours: pickNumber(aliases.exaFreshnessMaxAgeHours ?? aliases.exa_freshness_max_age_hours, defaultInput.exaFreshnessMaxAgeHours), debug: pickBoolean(aliases.debug, defaultInput.debug) };
 }
 
 function toRuntimeConfig(input: ActorInput): NormalizedRuntimeConfig {
-  return { runAfmMar19: input.runAfmMar19, runAfmSubstantialHoldings: input.runAfmSubstantialHoldings, runExaConfirmation: input.runExaConfirmation ?? false, afmMar19CsvUrl: input.afmMar19CsvUrl, afmSubstantialHoldingsCsvUrl: input.afmSubstantialHoldingsCsvUrl, lookbackDays: input.lookbackDays, minSignalConfidence: input.minSignalConfidence, minNaturalPersonConfidence: input.minNaturalPersonConfidence, excludeInstitutions: input.excludeInstitutions, maxReviewRecords: input.maxReviewRecords, maxMatchReadyRecords: input.maxMatchReadyRecords, topBucketBForExa: input.topBucketBForExa ?? input.exaTopReviewConfirmations, exaFreshnessMaxAgeHours: input.exaFreshnessMaxAgeHours, debug: input.debug, hasExaApiKey: Boolean(input.exaApiKey) };
+  return { runAfmMar19: input.runAfmMar19, runAfmSubstantialHoldings: input.runAfmSubstantialHoldings, runExaConfirmation: input.runExaConfirmation ?? false, afmMar19CsvUrl: input.afmMar19CsvUrl, afmSubstantialHoldingsCsvUrl: input.afmSubstantialHoldingsCsvUrl, lookbackDays: input.lookbackDays, minSignalConfidence: input.minSignalConfidence, minNaturalPersonConfidence: input.minNaturalPersonConfidence, excludeInstitutions: input.excludeInstitutions, maxReviewRecords: input.maxReviewRecords, maxMatchReadyRecords: input.maxMatchReadyRecords, maxShortlistRecords: input.maxShortlistRecords, topBucketBForExa: input.topBucketBForExa ?? input.exaTopReviewConfirmations, exaFreshnessMaxAgeHours: input.exaFreshnessMaxAgeHours, debug: input.debug, hasExaApiKey: Boolean(input.exaApiKey) };
 }
 
 function getSelectedSources(input: ActorInput): string[] {
@@ -266,11 +268,25 @@ export async function run(): Promise<void> {
     if (!review.length) stageWarn('review export wrote zero records', { maxReviewRecords: input.maxReviewRecords });
     const matchReady = await exportMatchReady(postFilterRecords, input.maxMatchReadyRecords);
     if (!matchReady.length) stageWarn('match-ready export wrote zero records — likely all records blocked by signal gates', {
+
       maxMatchReadyRecords: input.maxMatchReadyRecords,
       runExaConfirmation: runtimeConfig.runExaConfirmation,
       hasExaApiKey: runtimeConfig.hasExaApiKey,
       hint: runtimeConfig.hasExaApiKey ? undefined : 'match_ready requires enrichment_context or role; enable Exa or ensure source provides role data',
     });
+
+    // --- Shortlist export ---
+    // Exportable without Exa. Softer gate than match-ready: requires A/B bucket,
+    // natural_person_confidence >= 0.45, signal_confidence >= 0.40, and either a
+    // primary source or a secondary source corroborated by a MAR 19 filing.
+    // Records are already scored by rankReviewRecords (called inside exportReviewDataset).
+    const shortlistRecords = postFilterRecords
+      .filter((r) => r.shortlist_eligible)
+      .sort((a, b) => b.review_priority_score - a.review_priority_score)
+      .slice(0, input.maxShortlistRecords);
+    const shortlistDataset = await Dataset.open('shortlist');
+    if (shortlistRecords.length) await shortlistDataset.pushData(shortlistRecords.map(toReviewRecord));
+    stageLog('shortlist export completed', { shortlistItems: shortlistRecords.length });
 
     const review_bucket_stats = {
       A: postFilterRecords.filter((record) => record.review_bucket === 'A').length,
@@ -282,6 +298,7 @@ export async function run(): Promise<void> {
       default_dataset_items: rawArchiveStats.itemsWritten,
       review_items: review.length,
       match_ready_items: matchReady.length,
+      shortlist_items: shortlistRecords.length,
       kv_run_summary: false,
       kv_input_schema: false,
     };
