@@ -1,18 +1,16 @@
 import { DEFAULT_AFM_SUBSTANTIAL_HOLDINGS_CSV_URL } from '../config.js';
 import { normalizeRecord } from '../normalize/normalizeRecord.js';
-import { logNormalizationHealth, mapSourceField } from '../normalize/sourceNormalization.js';
+import { logNormalizationHealth, mapRequiredSourceField, validateSourceSchema } from '../normalize/sourceNormalization.js';
 import { NormalizedSignalRecord } from '../types.js';
 import { fetchCsvRows } from '../utils/csv.js';
 
-const SUBSTANTIAL_FIELD_MAP = {
-  signalDateRaw: ['Datum meldingsplicht', 'NotificationDate', 'notification_date', 'Date', 'date'],
-  companyName: ['Uitgevende instelling', 'Issuer', 'issuer', 'Company', 'company'],
-  personName: ['Meldingsplichtige', 'NotifyingParty', 'Name', 'name'],
-  kvkNumber: ['Kvk-nr', 'KvkNr', 'kvk_number'],
-  city: ['Plaats', 'City', 'city'],
-  capitalInterestBefore: ['CapitalInterestBefore', 'capital_interest_before', 'Before'],
-  capitalInterestAfter: ['CapitalInterestAfter', 'capital_interest_after', 'After'],
-} as const;
+export const AFM_SUBSTANTIAL_REQUIRED_COLUMNS = [
+  'Datum meldingsplicht',
+  'Uitgevende instelling',
+  'Meldingsplichtige',
+  'Kvk-nr',
+  'Plaats',
+] as const;
 
 function toNumber(value: string | undefined): number | null {
   if (!value) return null;
@@ -23,16 +21,20 @@ function toNumber(value: string | undefined): number | null {
 
 export async function ingestAfmSubstantialHoldings(url = DEFAULT_AFM_SUBSTANTIAL_HOLDINGS_CSV_URL): Promise<NormalizedSignalRecord[]> {
   const rows = await fetchCsvRows(url, { sourceName: 'AFM substantial holdings' });
-  const records = rows.map((row) => {
-    const signalDateRaw = mapSourceField(row, [...SUBSTANTIAL_FIELD_MAP.signalDateRaw]);
-    const companyName = mapSourceField(row, [...SUBSTANTIAL_FIELD_MAP.companyName]);
-    const personName = mapSourceField(row, [...SUBSTANTIAL_FIELD_MAP.personName]);
-    const kvkNumber = mapSourceField(row, [...SUBSTANTIAL_FIELD_MAP.kvkNumber]);
-    const city = mapSourceField(row, [...SUBSTANTIAL_FIELD_MAP.city]);
-    const before = toNumber(mapSourceField(row, [...SUBSTANTIAL_FIELD_MAP.capitalInterestBefore]));
-    const after = toNumber(mapSourceField(row, [...SUBSTANTIAL_FIELD_MAP.capitalInterestAfter]));
+  validateSourceSchema(rows, { sourceName: 'AFM substantial holdings', requiredColumns: [...AFM_SUBSTANTIAL_REQUIRED_COLUMNS] });
+  const records: NormalizedSignalRecord[] = [];
+  for (const row of rows) {
+    const signalDateRaw = mapRequiredSourceField(row, 'Datum meldingsplicht');
+    const companyName = mapRequiredSourceField(row, 'Uitgevende instelling');
+    const personName = mapRequiredSourceField(row, 'Meldingsplichtige');
+    const kvkNumber = mapRequiredSourceField(row, 'Kvk-nr');
+    const city = mapRequiredSourceField(row, 'Plaats');
+    const before = toNumber(row['Kapitaalbelang voor melding']?.trim());
+    const after = toNumber(row['Kapitaalbelang na melding']?.trim());
+    const votingBefore = toNumber(row['Stemrecht voor melding']?.trim());
+    const votingAfter = toNumber(row['Stemrecht na melding']?.trim());
     const reduction = before !== null && after !== null && after < before;
-    return normalizeRecord({
+    records.push(normalizeRecord({
       personName,
       companyName,
       signalDate: signalDateRaw,
@@ -44,13 +46,23 @@ export async function ingestAfmSubstantialHoldings(url = DEFAULT_AFM_SUBSTANTIAL
       sourceUrl: url,
       evidenceType: 'afm_csv_holding_notice',
       evidenceStrength: reduction ? 0.82 : 0.55,
-      rawSummary: `datum_meldingsplicht=${signalDateRaw}; uitgevende_instelling=${companyName}; meldingsplichtige=${personName}; kvk_nr=${kvkNumber}; plaats=${city}; before=${before}; after=${after}`,
+      rawSummary: [
+        `datum_meldingsplicht=${signalDateRaw}`,
+        `uitgevende_instelling=${companyName}`,
+        `meldingsplichtige=${personName}`,
+        `kvk_nr=${kvkNumber}`,
+        `plaats=${city}`,
+        `kapitaalbelang_voor=${before}`,
+        `kapitaalbelang_na=${after}`,
+        `stemrecht_voor=${votingBefore}`,
+        `stemrecht_na=${votingAfter}`,
+      ].join('; '),
       notes: [reduction ? 'Reduction appears explicit in AFM holdings export.' : 'Holding change direction unclear; preserve for review only.'],
       personType: 'unknown',
       capitalInterestBefore: before,
       capitalInterestAfter: after,
-    });
-  });
-  logNormalizationHealth('afm_substantial', rows, records);
+    }));
+  }
+  logNormalizationHealth('afm_substantial', records);
   return records;
 }

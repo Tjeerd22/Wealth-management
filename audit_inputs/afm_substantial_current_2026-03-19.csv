@@ -1,8 +1,8 @@
-NotificationDate,Issuer,NotifyingParty,CapitalInterestBefore,CapitalInterestAfter
-2026-03-17,Pharming Group N.V.,Bank of America Corporation,,
-2026-03-17,ARCADIS N.V.,Bank of America Corporation,,
-2026-03-17,IMCD N.V.,Bank of America Corporation,,
-2026-03-17,NN Group N.V.,UBS Group AG,,
+Datum meldingsplicht,Uitgevende instelling,Meldingsplichtige,Kvk-nr,Plaats,Kapitaalbelang voor melding,Kapitaalbelang na melding,Stemrecht voor melding,Stemrecht na melding
+2026-03-17,Pharming Group N.V.,Bank of America Corporation,12345678,Amsterdam,,, ,
+2026-03-17,ARCADIS N.V.,Bank of America Corporation,12345678,Amsterdam,,, ,
+2026-03-17,IMCD N.V.,Bank of America Corporation,12345678,Amsterdam,,, ,
+2026-03-17,NN Group N.V.,UBS Group AG,22345678,Amsterdam,,, ,
 2026-03-17,The Magnum Ice Cream Company N.V.,BlackRock Inc.,,
 2026-03-17,Stellantis N.V.,BlackRock Inc.,,
 2026-03-17,TomTom N.V.,BlackRock Inc.,,

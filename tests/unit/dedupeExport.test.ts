@@ -50,6 +50,28 @@ describe('dedupe and raw archive guardrails', () => {
     expect(result.stats.mergesPerformed).toBe(0);
   });
 
+
+  it('warns when dedupe reduction ratio is implausibly high', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const records = Array.from({ length: 100 }, (_, index) => normalizeRecord({
+      personName: 'Jan de Vries',
+      companyName: 'Adyen NV',
+      signalDate: '2026-03-01',
+      signalType: 'pdmr_transaction_unconfirmed',
+      signalDetail: `A-${index}`,
+      sourceName: 'afm_mar19',
+      sourceUrl: `fixture-${index}`,
+      evidenceType: 'afm_csv_filing',
+      evidenceStrength: 0.66,
+      rawSummary: `fixture-${index}`,
+    }));
+
+    const result = dedupeSignalsWithStats(records);
+    expect(result.records).toHaveLength(1);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   it('compacts large provenance and notes payloads below the item-size guard', async () => {
     const record = normalizeRecord({
       personName: 'Jan de Vries',
