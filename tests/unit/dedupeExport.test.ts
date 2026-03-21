@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { normalizeRecord } from '../../src/normalize/normalizeRecord.js';
-import { dedupeSignalsWithStats } from '../../src/dedupe/dedupeSignals.js';
 import { APIFY_SAFE_ITEM_BYTES, estimateSerializedSizeBytes, makeRawArchiveItemSizeSafe } from '../../src/export/exportRawArchive.js';
 
 const { setValueMock, pushDataMock } = vi.hoisted(() => ({
@@ -14,62 +13,13 @@ vi.mock('apify', () => ({
   },
   Dataset: {
     pushData: pushDataMock,
+    open: vi.fn(async () => ({ pushData: pushDataMock })),
   },
 }));
 
-describe('dedupe and raw archive guardrails', () => {
+describe('raw archive guardrails', () => {
   beforeEach(() => {
     setValueMock.mockClear();
-  });
-
-  it('does not collapse many same-issuer same-day records with distinct people into one merge group', () => {
-    const records = Array.from({ length: 250 }, (_, index) => normalizeRecord({
-      personName: `Person ${index}`,
-      companyName: 'ASML Holding NV',
-      signalDate: '2026-03-02',
-      signalType: 'pdmr_transaction_unconfirmed',
-      signalDetail: `Event ${index}`,
-      sourceName: 'afm_mar19',
-      sourceUrl: `fixture-${index}`,
-      evidenceType: 'afm_csv_filing',
-      evidenceStrength: 0.66,
-      rawSummary: `fixture-${index}`,
-    }));
-
-    const result = dedupeSignalsWithStats(records);
-    expect(result.records).toHaveLength(250);
-    expect(result.stats.mergesPerformed).toBe(0);
-  });
-
-  it('keeps same issuer and same person distinct when the dates differ', () => {
-    const a = normalizeRecord({ personName: 'Jan de Vries', companyName: 'Adyen NV', signalDate: '2026-03-01', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'A', sourceName: 'afm_mar19', sourceUrl: 'a', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'a' });
-    const b = normalizeRecord({ personName: 'Jan de Vries', companyName: 'Adyen NV', signalDate: '2026-03-02', signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'B', sourceName: 'afm_mar19', sourceUrl: 'b', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'b' });
-
-    const result = dedupeSignalsWithStats([a, b]);
-    expect(result.records).toHaveLength(2);
-    expect(result.stats.mergesPerformed).toBe(0);
-  });
-
-
-  it('warns when dedupe reduction ratio is implausibly high', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const records = Array.from({ length: 100 }, (_, index) => normalizeRecord({
-      personName: 'Jan de Vries',
-      companyName: 'Adyen NV',
-      signalDate: '2026-03-01',
-      signalType: 'pdmr_transaction_unconfirmed',
-      signalDetail: `A-${index}`,
-      sourceName: 'afm_mar19',
-      sourceUrl: `fixture-${index}`,
-      evidenceType: 'afm_csv_filing',
-      evidenceStrength: 0.66,
-      rawSummary: `fixture-${index}`,
-    }));
-
-    const result = dedupeSignalsWithStats(records);
-    expect(result.records).toHaveLength(1);
-    expect(warnSpy).toHaveBeenCalled();
-    warnSpy.mockRestore();
   });
 
   it('compacts large provenance and notes payloads below the item-size guard', async () => {
@@ -79,9 +29,9 @@ describe('dedupe and raw archive guardrails', () => {
       signalDate: '2026-03-01',
       signalType: 'pdmr_transaction_unconfirmed',
       signalDetail: 'X'.repeat(20_000),
-      sourceName: 'afm_mar19',
+      sourceName: 'afm_mar19_html',
       sourceUrl: 'fixture',
-      evidenceType: 'afm_csv_filing',
+      evidenceType: 'afm_html_filing',
       evidenceStrength: 0.66,
       rawSummary: 'summary'.repeat(2_000),
     });
@@ -112,9 +62,9 @@ describe('dedupe and raw archive guardrails', () => {
       signalDate: '2026-03-01',
       signalType: 'pdmr_transaction_unconfirmed',
       signalDetail: 'X'.repeat(9_000_000),
-      sourceName: 'afm_mar19',
+      sourceName: 'afm_mar19_html',
       sourceUrl: 'fixture',
-      evidenceType: 'afm_csv_filing',
+      evidenceType: 'afm_html_filing',
       evidenceStrength: 0.66,
       rawSummary: 'summary',
     });

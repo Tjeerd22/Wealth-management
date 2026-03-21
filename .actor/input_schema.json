@@ -1,53 +1,34 @@
 {
   "title": "Dutch HNWI Signal Engine — Input",
-  "description": "AFM-based liquidity signal pipeline with optional Exa shortlist confirmation. Fetches AFM MAR 19 and AFM substantial holdings CSV exports, scores and filters signals, and writes outputs to Apify datasets and KV store.",
+  "description": "AFM MAR 19 HTML register scraper with optional Exa shortlist confirmation. Scrapes paginated HTML pages from the AFM MAR 19 register, scores and filters signals, and writes outputs to Apify datasets and KV store.",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
-    "runAfmMar19": {
-      "title": "Run AFM MAR 19",
-      "type": "boolean",
-      "description": "Ingest the AFM MAR 19 (Melding artikel 19 MAR) CSV export. This is the primary source. If disabled and substantial holdings is also disabled, the run fails. If MAR 19 fails to fetch, the run fails regardless of other sources.",
-      "default": true
+    "dateFrom": {
+      "title": "Date from (dd-mm-yyyy)",
+      "type": "string",
+      "description": "Start date filter for the AFM MAR 19 register in dd-mm-yyyy format. Leave blank to default to 30 days ago.",
+      "editor": "textfield",
+      "default": ""
     },
-    "runAfmSubstantialHoldings": {
-      "title": "Run AFM substantial holdings",
-      "type": "boolean",
-      "description": "Ingest the AFM substantial holdings (Meldingen substantiële deelnemingen) CSV export. This is a secondary confirmation source. If this source fails after retries, the run enters degraded mode and continues with MAR 19 only. Does not cause a fatal failure on its own.",
-      "default": true
+    "maxPages": {
+      "title": "Max pages to scrape",
+      "type": "integer",
+      "description": "Maximum number of HTML pages to scrape from the AFM register. Each page contains a table of transaction filings. Pagination stops when no more results are found or this limit is reached.",
+      "default": 20,
+      "minimum": 1,
+      "maximum": 100
     },
     "runExaConfirmation": {
       "title": "Run Exa confirmation",
       "type": "boolean",
-      "description": "Enable the optional Exa neural search confirmation pass. When enabled, the top review records (bucket A + top N bucket B) are enriched with Exa web search results to confirm person context, role, and disposal language. Requires exaApiKey or EXA_API_KEY environment variable. If Exa is unavailable, the run continues without confirmation and records are marked accordingly.",
+      "description": "Enable the optional Exa neural search confirmation pass. When enabled, the top review records (bucket A + top N bucket B) are enriched with Exa web search results to confirm person context, role, and disposal language. Requires exaApiKey or EXA_API_KEY environment variable.",
       "default": false
-    },
-    "afmMar19CsvUrl": {
-      "title": "AFM MAR 19 CSV URL (override)",
-      "type": "string",
-      "description": "Optional override for the AFM MAR 19 CSV download URL. Leave blank to use the default AFM endpoint. Use this to point at a fixture file or a cached copy for testing.",
-      "editor": "textfield",
-      "default": ""
-    },
-    "afmSubstantialHoldingsCsvUrl": {
-      "title": "AFM substantial holdings CSV URL (override)",
-      "type": "string",
-      "description": "Optional override for the AFM substantial holdings CSV download URL. Leave blank to use the default AFM endpoint. The file is approximately 95 MB and 250,000+ rows — early lookback filtering keeps memory bounded.",
-      "editor": "textfield",
-      "default": ""
-    },
-    "lookbackDays": {
-      "title": "Lookback days",
-      "type": "integer",
-      "description": "Signals older than this many days are dropped during the early lookback filter step. Applies to both sources. Lower values produce fewer but more recent signals. Default 45 days covers the most recent AFM MAR 19 and substantial holdings filings.",
-      "default": 45,
-      "minimum": 7,
-      "maximum": 365
     },
     "minSignalConfidence": {
       "title": "Minimum signal confidence gate",
       "type": "number",
-      "description": "Records with signal_confidence below this threshold are blocked by the 'below_min_signal_confidence' gate and do not reach match-ready or shortlist. Default 0.6. Lowering this value increases recall but reduces precision.",
+      "description": "Records with signal_confidence below this threshold are blocked by the 'below_min_signal_confidence' gate and do not reach shortlist. Default 0.6.",
       "default": 0.6,
       "minimum": 0,
       "maximum": 1
@@ -55,37 +36,37 @@
     "minNaturalPersonConfidence": {
       "title": "Minimum natural person confidence gate",
       "type": "number",
-      "description": "Records with natural_person_confidence below this threshold are blocked by the 'low_natural_person_confidence' gate. Default 0.6. Institutional-sounding names score near 0.1; clear person names score 0.76+.",
+      "description": "Records with natural_person_confidence below this threshold are blocked. Default 0.6.",
       "default": 0.6,
+      "minimum": 0,
+      "maximum": 1
+    },
+    "minReviewPriorityScore": {
+      "title": "Minimum review priority score",
+      "type": "number",
+      "description": "Minimum review priority score for shortlist eligibility. Default 0.4.",
+      "default": 0.4,
       "minimum": 0,
       "maximum": 1
     },
     "excludeInstitutions": {
       "title": "Exclude institutional records from exports",
       "type": "boolean",
-      "description": "When true, records flagged as high institutional risk (institutional_risk=high) are removed from all exports after scoring. They are still counted in the raw archive. Disable this only for diagnostic runs.",
+      "description": "When true, records flagged as high institutional risk are removed from all exports after scoring.",
       "default": true
     },
     "maxReviewRecords": {
       "title": "Max review dataset records",
       "type": "integer",
-      "description": "Maximum number of records written to the 'review' named dataset. Records are ranked by bucket (A → B → C), issuer desirability, NL relevance, and natural person confidence before slicing.",
+      "description": "Maximum number of records written to the 'review' named dataset.",
       "default": 100,
       "minimum": 1,
       "maximum": 1000
     },
-    "maxMatchReadyRecords": {
-      "title": "Max match-ready dataset records",
-      "type": "integer",
-      "description": "Maximum number of records written to the 'match-ready' named dataset. Match-ready records must pass all strict signal gates. Without Exa confirmation, match-ready output is typically 0 because records require enrichment_context or verified role data.",
-      "default": 30,
-      "minimum": 1,
-      "maximum": 500
-    },
     "maxShortlistRecords": {
       "title": "Max shortlist dataset records",
       "type": "integer",
-      "description": "Maximum number of records written to the 'shortlist' named dataset. The shortlist uses a softer gate than match-ready: requires review bucket A or B, natural_person_confidence ≥ 0.45, and signal_confidence ≥ 0.40. Does not require Exa confirmation.",
+      "description": "Maximum number of records written to the default dataset (shortlist). The shortlist uses a softer gate: requires review bucket A or B, natural_person_confidence >= 0.45, and signal_confidence >= 0.40.",
       "default": 60,
       "minimum": 1,
       "maximum": 300
@@ -93,7 +74,7 @@
     "topBucketBForExa": {
       "title": "Bucket B records for Exa confirmation",
       "type": "integer",
-      "description": "How many bucket B review records to include in the Exa confirmation pass (in addition to all bucket A records). Only relevant when runExaConfirmation is true. Set to 0 to confirm bucket A only.",
+      "description": "How many bucket B review records to include in the Exa confirmation pass (in addition to all bucket A records). Only relevant when runExaConfirmation is true.",
       "default": 5,
       "minimum": 0,
       "maximum": 25
@@ -101,22 +82,22 @@
     "exaFreshnessMaxAgeHours": {
       "title": "Exa content freshness cap (hours)",
       "type": "integer",
-      "description": "Maximum age in hours for Exa content fetches during confirmation. Content older than this will not be fetched. Default 72 hours covers a 3-day window around the signal date. Only relevant when runExaConfirmation is true.",
+      "description": "Maximum age in hours for Exa content fetches during confirmation. Default 72 hours.",
       "default": 72,
       "minimum": 1,
       "maximum": 720
     },
     "exaApiKey": {
-  "title": "Exa API key",
-  "type": "string",
-  "description": "Optional. Secret Exa API key. If left empty, the actor will fall back to EXA_API_KEY from the environment.",
-  "editor": "textfield",
-  "isSecret": true
+      "title": "Exa API key",
+      "type": "string",
+      "description": "Optional. Secret Exa API key. If left empty, the actor will fall back to EXA_API_KEY from the environment.",
+      "editor": "textfield",
+      "isSecret": true
     },
     "debug": {
       "title": "Debug logging",
       "type": "boolean",
-      "description": "Enable verbose debug logging. Produces additional structured log entries for each pipeline stage. Useful for diagnosing schema drift or gate threshold issues.",
+      "description": "Enable verbose debug logging. Produces additional structured log entries for each pipeline stage.",
       "default": false
     }
   }

@@ -35,17 +35,11 @@ export function applyBlockedByRules(record: NormalizedSignalRecord, minNaturalPe
   if (!record.role && !record.enrichment_context) {
     addBlocked(record, 'missing_verified_context', 'Failed verified-context gate.');
   }
-  if (record.signal_type === 'substantial_holding_reduction' && record.natural_person_confidence < 0.75) {
-    addBlocked(record, 'strict_substantial_holder_gate', 'Failed strict substantial-holding natural-person gate.');
-  }
   if (record.nl_relevance_score < 0.45) {
     addBlocked(record, 'low_nl_relevance', 'Low Netherlands wealth-management relevance for current v1 scope.');
   }
   if (record.signal_confidence < minSignalConfidence) {
     addBlocked(record, 'below_min_signal_confidence', 'Below minimum signal confidence threshold.');
-  }
-  if (record.source_role === 'secondary_confirmation' && !(record.provenance_sources ?? []).includes('afm_mar19')) {
-    addBlocked(record, 'secondary_source_no_primary_match', 'Secondary source record not corroborated by a primary MAR 19 filing; excluded from match-ready.');
   }
 
   record.review_bucket = classifyReviewBucket(record);

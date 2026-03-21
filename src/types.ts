@@ -4,13 +4,9 @@ export type PersonType = 'unknown' | 'natural_person' | 'legal_entity' | 'family
  * Role of the source that produced this record.
  *
  * - primary: the record originated from a source that drives candidate generation
- *   (AFM MAR 19). A primary record can reach match-ready without corroboration.
- * - secondary_confirmation: the record originated from a source used only for
- *   enrichment and confirmation (AFM substantial holdings). A secondary record
- *   cannot reach match-ready unless it has been merged with a primary record
- *   (i.e., provenance_sources includes 'afm_mar19').
+ *   (AFM MAR 19 HTML register).
  */
-export type SourceRole = 'primary' | 'secondary_confirmation';
+export type SourceRole = 'primary';
 
 /**
  * Direction of the underlying transaction or position change.
@@ -33,28 +29,26 @@ export type SignalClarity = 'explicit' | 'inferred' | 'unclear';
 /**
  * Explicit run state. Exactly one of these is reported in RUN_SUMMARY.
  *
- * - succeeded: all enabled sources fetched successfully, valid outputs written.
- * - degraded:  one source failed after retries; pipeline continued with remaining
- *              sources and wrote valid outputs. degraded_run will be true.
+ * - succeeded: source fetched successfully, valid outputs written.
  * - failed:    pipeline threw an unrecoverable error. No valid data outputs guaranteed.
  *              The actor exits with a non-zero exit code.
  */
-export type FinalRunState = 'succeeded' | 'degraded' | 'failed';
+export type FinalRunState = 'succeeded' | 'failed';
 
 export interface SourceFetchStatus {
   /** Whether the source was configured to run. */
   enabled: boolean;
   /** Outcome of the fetch+parse stage for this source. */
-  status: 'ok' | 'skipped' | 'degraded' | 'failed';
+  status: 'ok' | 'skipped' | 'failed';
   row_count: number;
-  retries_attempted: number;
+  pages_fetched: number;
   elapsed_ms: number;
   http_status?: number;
   error?: string;
 }
 export type InstitutionalRisk = 'low' | 'medium' | 'high' | 'unknown';
 export type ReviewBucket = 'A' | 'B' | 'C';
-export type ReviewAction = 'manual_context_check' | 'manual_person_verify' | 'discard_low_relevance' | 'watchlist_only';
+export type ReviewAction = 'manual_context_check' | 'manual_person_verify' | 'discard_low_relevance' | 'watchlist_only' | 'apollo_lookup_if_needed';
 export type ConfirmationEvidenceStrength = 'none' | 'weak' | 'moderate' | 'strong';
 export type BlockedReason =
   | 'missing_verified_context'
@@ -62,34 +56,26 @@ export type BlockedReason =
   | 'low_nl_relevance'
   | 'low_natural_person_confidence'
   | 'institutional_risk'
-  | 'below_min_signal_confidence'
-  | 'strict_substantial_holder_gate'
-  | 'secondary_source_no_primary_match';
+  | 'below_min_signal_confidence';
 
 export interface ActorInput {
-  runAfmMar19: boolean;
-  runAfmSubstantialHoldings: boolean;
-  runExaEnrichment: boolean;
-  runExaConfirmation?: boolean;
-  afmMar19CsvUrl: string;
-  afmSubstantialHoldingsCsvUrl: string;
-  lookbackDays: number;
+  dateFrom: string;
+  maxPages: number;
+  runExaConfirmation: boolean;
   minSignalConfidence: number;
   minNaturalPersonConfidence: number;
+  minReviewPriorityScore: number;
   excludeInstitutions: boolean;
   maxReviewRecords: number;
-  maxMatchReadyRecords: number;
   maxShortlistRecords: number;
-  topBucketBForExa?: number;
+  topBucketBForExa: number;
   exaApiKey: string;
-  exaTopReviewConfirmations: number;
   exaFreshnessMaxAgeHours: number;
   debug: boolean;
 }
 
 export interface SourceStats {
-  afm_mar19: number;
-  afm_substantial: number;
+  afm_mar19_html: number;
   exa_enriched: number;
 }
 
@@ -141,20 +127,17 @@ export interface ExaConfirmationContent {
 
 export interface RunSummary {
   final_run_state: FinalRunState;
-  degraded_run: boolean;
-  source_status: Record<'afm_mar19' | 'afm_substantial', SourceFetchStatus>;
+  source_status: Record<'afm_mar19_html', SourceFetchStatus>;
   raw_records: number;
   post_filter_records: number;
   review_records: number;
-  match_ready_records: number;
   excluded_institutions: number;
   low_confidence_records: number;
   source_stats: SourceStats;
   review_bucket_stats: ReviewBucketStats;
   outputs_written: {
-    default_dataset_items: number;
+    raw_archive_items: number;
     review_items: number;
-    match_ready_items: number;
     shortlist_items: number;
     kv_run_summary: boolean;
     kv_input_schema: boolean;
@@ -215,6 +198,7 @@ export interface NormalizedSignalRecord {
   confirmation_summary: string;
   confirmation_evidence_strength: ConfirmationEvidenceStrength;
   review_action_updated: ReviewAction;
+  page_number?: number;
 }
 
 export interface ReviewRecord {
@@ -254,19 +238,6 @@ export interface ReviewRecord {
   confirmation_summary: string;
   confirmation_evidence_strength: ConfirmationEvidenceStrength;
   review_action_updated: ReviewAction;
-}
-
-export interface MatchReadyRecord {
-  full_name: string;
-  role: string;
-  company_name: string;
-  company_domain: string;
-  signal_type: string;
-  signal_date: string;
-  signal_detail: string;
-  source_url: string;
-  signal_confidence: number;
-  framing_hint: string;
 }
 
 export interface ExaEnrichmentResult {

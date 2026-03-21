@@ -18,27 +18,18 @@ export function applySignalGates(record: NormalizedSignalRecord, input: ActorInp
   if (!hasVerifiedContext) {
     record.match_ready = false;
   }
-  if (record.signal_type === 'substantial_holding_reduction' && record.natural_person_confidence < 0.75) {
-    record.match_ready = false;
-  }
   if (record.signal_confidence < input.minSignalConfidence) {
-    record.match_ready = false;
-  }
-  if (record.source_role === 'secondary_confirmation' && !(record.provenance_sources ?? []).includes('afm_mar19')) {
     record.match_ready = false;
   }
 
   applyBlockedByRules(record, input.minNaturalPersonConfidence, input.minSignalConfidence);
 
-  const primaryOrMerged = record.source_role === 'primary'
-    || (record.source_role === 'secondary_confirmation' && (record.provenance_sources ?? []).includes('afm_mar19'));
   const typeOk = !record.signal_type.includes('unclear') || record.liquidity_relevance >= 0.6;
 
   record.shortlist_eligible = (
     record.natural_person_confidence >= 0.45
     && record.signal_confidence >= 0.40
     && (record.review_bucket === 'A' || record.review_bucket === 'B')
-    && primaryOrMerged
     && typeOk
   );
 

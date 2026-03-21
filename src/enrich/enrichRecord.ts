@@ -13,7 +13,7 @@ export async function enrichRecord(record: NormalizedSignalRecord, input: ActorI
   }
 
   let exa: ExaEnrichmentResult | null = null;
-  if (input.runExaEnrichment && input.exaApiKey) {
+  if (input.runExaConfirmation && input.exaApiKey) {
     exa = await enrichWithExa(record, input.exaApiKey);
   }
 

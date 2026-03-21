@@ -181,13 +181,11 @@ async function confirmOneRecord(record: NormalizedSignalRecord, input: ActorInpu
 export async function confirmContextForTopReviewRecords(records: NormalizedSignalRecord[], input: ActorInput): Promise<NormalizedSignalRecord[]> {
   const ranked = [...records];
   const shortlist = ranked.filter((record) => record.review_bucket === 'A');
-  // Support both the canonical field (topBucketBForExa) and the legacy alias.
-  const topBucketBCount = input.topBucketBForExa ?? input.exaTopReviewConfirmations;
+  const topBucketBCount = input.topBucketBForExa;
   const bucketB = ranked.filter((record) => record.review_bucket === 'B').slice(0, topBucketBCount);
   const targets = [...shortlist, ...bucketB];
 
-  // Use canonical runExaConfirmation with fallback to legacy runExaEnrichment alias.
-  const exaEnabled = (input.runExaConfirmation ?? input.runExaEnrichment) && Boolean(input.exaApiKey);
+  const exaEnabled = input.runExaConfirmation && Boolean(input.exaApiKey);
   if (!exaEnabled) {
     for (const record of targets) applyConfirmation(record, defaultConfirmation(record, 'Exa confirmation skipped because API access was not configured.'));
     return records;

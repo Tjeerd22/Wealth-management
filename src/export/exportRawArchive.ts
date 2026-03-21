@@ -113,6 +113,7 @@ export async function makeRawArchiveItemSizeSafe(record: NormalizedSignalRecord)
 }
 
 export async function exportRawArchive(records: NormalizedSignalRecord[]): Promise<RawArchiveExportStats> {
+  const dataset = await Dataset.open('raw-archive');
   let compactedItems = 0;
   let kvAuditItems = 0;
   let maxSerializedBytes = 0;
@@ -129,7 +130,7 @@ export async function exportRawArchive(records: NormalizedSignalRecord[]): Promi
     }
     if (prepared.auditKey) kvAuditItems += 1;
     maxSerializedBytes = Math.max(maxSerializedBytes, prepared.sizeBytes);
-    await Dataset.pushData(prepared.item);
+    await dataset.pushData(prepared.item);
   }
 
   return {

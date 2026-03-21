@@ -3,7 +3,7 @@ import { clamp01 } from '../utils/strings.js';
 import { isWithinLookback, parseDate } from '../utils/dates.js';
 
 export function scoreSignal(record: NormalizedSignalRecord, lookbackDays: number): NormalizedSignalRecord {
-  const sourceQuality = record.source_name === 'afm_mar19' ? 0.68 : 0.82;
+  const sourceQuality = (record.source_name === 'afm_mar19' || record.source_name === 'afm_mar19_html') ? 0.68 : 0.82;
   const evidence = record.evidence_strength;
   const recency = isWithinLookback(record.signal_date, lookbackDays) ? 1 : 0.18;
   const naturalPerson = record.natural_person_confidence;

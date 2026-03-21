@@ -1,25 +1,19 @@
 import { ActorInput } from './types.js';
 
-export const DEFAULT_AFM_MAR19_CSV_URL = 'https://www.afm.nl/export.aspx?format=csv&type=0ee836dc-5520-459d-bcf4-a4a689de6614';
-export const DEFAULT_AFM_SUBSTANTIAL_HOLDINGS_CSV_URL = 'https://www.afm.nl/export.aspx?format=csv&type=1331d46f-3fb6-4a36-b903-9584972675af';
+export const AFM_MAR19_HTML_BASE_URL = 'https://www.afm.nl/en/sector/registers/meldingenregisters/transacties-leidinggevenden-mar19-';
 
 export const defaultInput: ActorInput = {
-  runAfmMar19: true,
-  runAfmSubstantialHoldings: true,
-  runExaEnrichment: false,
+  dateFrom: '',
+  maxPages: 20,
   runExaConfirmation: false,
-  afmMar19CsvUrl: DEFAULT_AFM_MAR19_CSV_URL,
-  afmSubstantialHoldingsCsvUrl: DEFAULT_AFM_SUBSTANTIAL_HOLDINGS_CSV_URL,
-  lookbackDays: 45,
   minSignalConfidence: 0.6,
   minNaturalPersonConfidence: 0.6,
+  minReviewPriorityScore: 0.4,
   excludeInstitutions: true,
   maxReviewRecords: 100,
-  maxMatchReadyRecords: 30,
   maxShortlistRecords: 60,
   topBucketBForExa: 5,
   exaApiKey: '',
-  exaTopReviewConfirmations: 5,
   exaFreshnessMaxAgeHours: 72,
   debug: false,
 };
