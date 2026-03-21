@@ -22,6 +22,10 @@ export function scoreNaturalPersonConfidence(record: NormalizedSignalRecord): nu
   if (/\d/.test(normalized) || /trading as|\(|\)/.test(normalized)) score = Math.min(score, 0.12);
   if (ENTITY_PATTERN.test(normalized) && !DUTCH_COMMA_PREFIX_PATTERN.test(normalized)) score = Math.min(score, 0.12);
 
+  // AFM MAR 19 explicitly populates MeldingsPlichtigeAchternaam only for natural persons.
+  // Scoped to afm_mar19 only — other sources derive person_last_name from name parsing,
+  // so the same field cannot be treated as an explicit person confirmation.
+  if (record.source_name === 'afm_mar19' && record.person_last_name && record.person_last_name.length > 1) score += 0.10;
   if (record.role) score += 0.05;
   if (record.person_type === 'family_holding') score -= 0.12;
   if (record.person_type === 'natural_person') score += 0.06;

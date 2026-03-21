@@ -19,7 +19,13 @@ export function scoreNlRelevance(record: NormalizedSignalRecord): number {
   if (record.company_country.toLowerCase() === 'netherlands') score += 0.2;
   if (/\b(nv|n\.v\.|amsterdam|nederland|netherlands|dutch)\b/.test(company)) score += 0.15;
   if (isDutchListedIssuer(record.company_name)) score += 0.2;
-  if (record.source_name.startsWith('afm_')) score += 0.08;
+  // MAR 19 with an explicit AFM surname field = confirmed Dutch regulatory person filing.
+  // Reward this more than a generic AFM source match.
+  if (record.source_name === 'afm_mar19') {
+    score += record.person_last_name && record.person_last_name.length > 1 ? 0.13 : 0.08;
+  } else if (record.source_name.startsWith('afm_')) {
+    score += 0.08;
+  }
   if (record.signal_type === 'substantial_holding_reduction') score += 0.08;
   if (record.role && /\b(chair|ceo|cfo|coo|cto|director|executive|board|founder|pdmr)\b/i.test(record.role)) score += 0.07;
   if (/\b(van|de|der|den|ter|ten|te)\b/.test(person) || /ij|aa|oo|eu/.test(person)) score += 0.04;

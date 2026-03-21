@@ -45,7 +45,7 @@ export async function ingestAfmMar19(url = DEFAULT_AFM_MAR19_CSV_URL): Promise<N
       sourceUrl: url,
       signalDirection: 'unclear',
       signalClarity: 'inferred',
-      liquidityRelevance: 0.5,
+      liquidityRelevance: 0.62,  // PDMR filings = insider transaction = stronger liquidity signal than generic change
       evidenceType: 'afm_csv_filing',
       evidenceStrength: 0.66,
       rawSummary: `transactie=${signalDateRaw}; uitgevende_instelling=${companyName}; meldingsplichtige=${personName}; meldingsplichtigeachternaam=${personLastName}`,

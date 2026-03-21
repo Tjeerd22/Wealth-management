@@ -22,6 +22,15 @@ export function assessInstitutionalRisk(name: string): { risk: InstitutionalRisk
 }
 
 export function applyInstitutionalFilter(record: NormalizedSignalRecord): NormalizedSignalRecord {
+  // MAR 19 (afm_mar19) explicitly populates MeldingsPlichtigeAchternaam for natural persons.
+  // When that field is present, the notifier is a confirmed natural person — skip institutional
+  // heuristics entirely. This check is scoped to afm_mar19 only; other sources derive
+  // person_last_name from name parsing and cannot provide the same guarantee.
+  if (record.source_name === 'afm_mar19' && record.person_last_name && record.person_last_name.length > 1) {
+    record.institutional_risk = 'low';
+    return record;
+  }
+
   const targetName = record.person_name;
   const { risk, notes } = assessInstitutionalRisk(targetName);
   record.institutional_risk = risk;

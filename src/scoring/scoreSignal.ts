@@ -3,7 +3,9 @@ import { clamp01 } from '../utils/strings.js';
 import { isWithinLookback, parseDate } from '../utils/dates.js';
 
 export function scoreSignal(record: NormalizedSignalRecord, lookbackDays: number): NormalizedSignalRecord {
-  const sourceQuality = record.source_name === 'afm_mar19' ? 0.68 : 0.82;
+  // MAR 19 is now the primary source; substantial holdings is secondary confirmation.
+  // Both receive equal source quality — MAR 19 no longer penalised for being "thin".
+  const sourceQuality = record.source_name === 'afm_mar19' ? 0.82 : 0.80;
   const evidence = record.evidence_strength;
   const recency = isWithinLookback(record.signal_date, lookbackDays) ? 1 : 0.18;
   const naturalPerson = record.natural_person_confidence;
@@ -11,7 +13,7 @@ export function scoreSignal(record: NormalizedSignalRecord, lookbackDays: number
   const signalTypeStrength = record.signal_type === 'substantial_holding_reduction'
     ? 0.88
     : record.signal_type === 'pdmr_transaction_unconfirmed'
-      ? 0.52
+      ? 0.68  // was 0.52; PDMR filings are insider transactions — primary wealth-transition signal
       : 0.34;
   const issuerRelevance = /\b(nv|n\.v\.|holding|group|amsterdam|netherlands|dutch)\b/i.test(record.company_name)
     ? 0.7
@@ -43,9 +45,11 @@ export function scoreSignal(record: NormalizedSignalRecord, lookbackDays: number
   }
   // Consolidated cap for all unclear/unconfirmed types. Previously split across scoreSignal
   // and signalGates.ts. For 'unclear' the 0.48 cap above is tighter and always wins;
-  // for 'unconfirmed' (pdmr) this 0.58 is the operative ceiling (0.58 < 0.66–0.74).
+  // for 'unconfirmed' (pdmr) this 0.65 is the operative ceiling — raised from 0.58 so that
+  // strong MAR 19 person records can reach shortlist (gate: 0.40) and, with Exa-provided
+  // hasVerifiedContext, also reach match_ready (gate: 0.60).
   if (record.signal_type.includes('unclear') || record.signal_type.includes('unconfirmed')) {
-    record.signal_confidence = Math.min(record.signal_confidence, 0.58);
+    record.signal_confidence = Math.min(record.signal_confidence, 0.65);
   }
   if (record.institutional_risk === 'high') {
     record.signal_confidence = Math.min(record.signal_confidence, 0.28);

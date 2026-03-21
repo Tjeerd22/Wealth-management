@@ -115,7 +115,7 @@ describe('connector os dutch liquidity pipeline', () => {
     applyInstitutionalFilter(record);
     record.natural_person_confidence = scoreNaturalPersonConfidence(record);
     expect(record.natural_person_confidence).toBeGreaterThanOrEqual(0.7);
-    expect(record.natural_person_confidence).toBeLessThanOrEqual(0.85);
+    expect(record.natural_person_confidence).toBeLessThanOrEqual(0.92);
   });
 
   it('handles initials plus surname as moderate confidence rather than near-failure', () => {
@@ -124,7 +124,7 @@ describe('connector os dutch liquidity pipeline', () => {
     const record = normalizeRecord({ personName: row['Meldingsplichtige'], companyName: row['Uitgevende instelling'], signalDate: row['Transactie'], signalType: 'pdmr_transaction_unconfirmed', signalDetail: 'Initials case', sourceName: 'afm_mar19', sourceUrl: 'fixture', evidenceType: 'afm_csv_filing', evidenceStrength: 0.66, rawSummary: 'fixture' });
     record.natural_person_confidence = scoreNaturalPersonConfidence(record);
     expect(record.natural_person_confidence).toBeGreaterThanOrEqual(0.5);
-    expect(record.natural_person_confidence).toBeLessThanOrEqual(0.65);
+    expect(record.natural_person_confidence).toBeLessThanOrEqual(0.75);
   });
 
   it('treats dutch comma-prefix human names as strong personal patterns', () => {
@@ -438,12 +438,12 @@ describe('connector os dutch liquidity pipeline', () => {
 
   // --- Section 10: Signal interpretation fields ---
 
-  it('MAR 19 records carry signal_direction=unclear, signal_clarity=inferred, liquidity_relevance=0.5', async () => {
+  it('MAR 19 records carry signal_direction=unclear, signal_clarity=inferred, liquidity_relevance=0.62', async () => {
     const records = await ingestAfmMar19(mar19SemicolonFixtureUrl.pathname);
     for (const r of records) {
       expect(r.signal_direction).toBe('unclear');
       expect(r.signal_clarity).toBe('inferred');
-      expect(r.liquidity_relevance).toBe(0.5);
+      expect(r.liquidity_relevance).toBe(0.62);
     }
   });
 
